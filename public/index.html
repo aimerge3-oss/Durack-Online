@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Дурак Онлайн</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- Экран загрузки -->
+    <div id="loading" class="screen">
+      <div class="loader"></div>
+      <p>Загрузка...</p>
+    </div>
+
+    <!-- Главное меню (по референсу) -->
+    <div id="menu" class="screen hidden">
+      <div class="top-bar">
+        <div class="user-info">
+          <img id="user-avatar" src="" alt="" class="avatar" />
+          <span id="user-name">Игрок</span>
+        </div>
+        <div class="coins">
+          <span id="user-coins">0</span>
+          <span class="coin-icon">🪙</span>
+        </div>
+      </div>
+
+      <div class="menu-buttons">
+        <button class="btn primary" id="btn-quick">Быстрая игра</button>
+        <button class="btn" id="btn-tournament">Турниры</button>
+        <button class="btn" id="btn-friends">Друзья</button>
+        <button class="btn" id="btn-leaderboard">Доска почёта</button>
+        <button class="btn" id="btn-shop">Предметы</button>
+        <button class="btn" id="btn-settings">Настройки</button>
+      </div>
+
+      <div class="footer">
+        <p class="version">Durack Online v0.1.0</p>
+      </div>
+    </div>
+
+    <!-- Экран лидерборда -->
+    <div id="leaderboard" class="screen hidden">
+      <div class="header">
+        <button class="btn-back" id="btn-back-lb">← Назад</button>
+        <h2>Доска почёта</h2>
+      </div>
+      <div id="lb-list" class="list"></div>
+    </div>
+
+    <!-- Заглушка игрового стола -->
+    <div id="game" class="screen hidden">
+      <div class="header">
+        <button class="btn-back" id="btn-leave">Выйти</button>
+        <span id="timer">15</span>
+      </div>
+      <div class="table">
+        <p class="placeholder">Игровой стол (будет в Этапе 1)</p>
+        <p id="room-info"></p>
+      </div>
+      <div class="hand" id="player-hand"></div>
+      <div class="actions">
+        <button class="btn" id="btn-take">Беру</button>
+        <button class="btn primary" id="btn-done">Бито</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
