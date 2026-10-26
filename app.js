@@ -3,6 +3,7 @@
  */
 
 const API_BASE = 'https://durack-online.pozzistory666.workers.dev';
+const WS_BASE = 'wss://durack-online.pozzistory666.workers.dev';
 
 const CARD_SUITS = {
   spades:   { symbol: '\u2660', color: 'black' },
@@ -34,6 +35,9 @@ let timerSeconds = 15;
 let game = null;
 let myId = 'player';
 let playerCount = 2;
+let mode = 'bot';
+let ws = null;
+let audioCtx = null;
 
 function $(id) {
   return document.getElementById(id);
@@ -61,6 +65,51 @@ function isBotId(id) {
   return String(id).indexOf('bot') === 0;
 }
 
+/* ===== Sound (Web Audio, no files) ===== */
+function ensureAudio() {
+  if (!audioCtx) {
+    try {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    } catch (e) {}
+  }
+  if (audioCtx && audioCtx.state === 'suspended') {
+    audioCtx.resume().catch(function () {});
+  }
+}
+
+function playTone(freq, dur, type, vol) {
+  ensureAudio();
+  if (!audioCtx) return;
+  try {
+    var o = audioCtx.createOscillator();
+    var g = audioCtx.createGain();
+    o.type = type || 'triangle';
+    o.frequency.value = freq;
+    g.gain.value = vol || 0.08;
+    o.connect(g);
+    g.connect(audioCtx.destination);
+    o.start();
+    g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
+    o.stop(audioCtx.currentTime + dur);
+  } catch (e) {}
+}
+
+function sfxPlay() {
+  playTone(420, 0.08, 'triangle', 0.1);
+  setTimeout(function () { playTone(520, 0.06, 'triangle', 0.07); }, 40);
+}
+function sfxDefend() {
+  playTone(360, 0.07, 'square', 0.06);
+  setTimeout(function () { playTone(280, 0.1, 'triangle', 0.08); }, 50);
+}
+function sfxTake() {
+  playTone(200, 0.12, 'sawtooth', 0.05);
+}
+function sfxBito() {
+  playTone(600, 0.08, 'sine', 0.07);
+  setTimeout(function () { playTone(800, 0.1, 'sine', 0.06); }, 70);
+}
+
 function flash(msg) {
   if (tg && tg.showAlert) tg.showAlert(String(msg));
   else {
@@ -84,8 +133,7 @@ function renderUser() {
     av.src = currentUser.photo_url ||
       'data:image/svg+xml,' + encodeURIComponent(
         '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><circle fill="#2a5a8c" cx="20" cy="20" r="20"/><text x="20" y="26" text-anchor="middle" fill="#fff" font-size="16">' +
-          letter +
-          '</text></svg>'
+          letter + '</text></svg>'
       );
   }
 }
@@ -103,11 +151,8 @@ function createCardEl(card, opts) {
   if (opts.playable) el.classList.add('playable');
   if (opts.extraClass) el.classList.add(opts.extraClass);
   el.innerHTML =
-    '<span class="rank">' +
-    (RANK_LABEL[card.rank] || card.rank) +
-    '</span><span class="suit">' +
-    suitInfo.symbol +
-    '</span>';
+    '<span class="rank">' + (RANK_LABEL[card.rank] || card.rank) +
+    '</span><span class="suit">' + suitInfo.symbol + '</span>';
   if (opts.onClick) {
     el.addEventListener('click', function (e) {
       e.stopPropagation();
@@ -115,6 +160,21 @@ function createCardEl(card, opts) {
     });
   }
   return el;
+}
+
+function renderTrumpPile(state) {
+  var face = $('trump-card-face');
+  var count = $('deck-count');
+  if (count) count.textContent = state.deckCount;
+  if (!face) return;
+  var card = state.trumpCard || { rank: '6', suit: state.trump };
+  var suitInfo = CARD_SUITS[card.suit] || CARD_SUITS.spades;
+  face.className = 'trump-card-face ' + suitInfo.color;
+  face.innerHTML =
+    '<span class="rank">' + (RANK_LABEL[card.rank] || card.rank) +
+    '</span><span class="suit">' + suitInfo.symbol + '</span>';
+  var stack = $('deck-stack');
+  if (stack) stack.style.display = state.deckCount > 0 ? 'block' : 'none';
 }
 
 function startTimer(seconds) {
@@ -131,13 +191,17 @@ function startTimer(seconds) {
     if (timerSeconds <= 0) {
       clearInterval(timerInterval);
       el.textContent = '0';
-      if (game && game.defender && game.defender.id === myId &&
+      if (mode !== 'bot' || !game) return;
+      if (game.defender && game.defender.id === myId &&
           (game.phase === 'defend' || game.phase === 'throw')) {
         game.take(myId);
+        sfxTake();
         renderFromGame();
-      } else if (game && game.attacker && game.attacker.id === myId &&
-          game.phase === 'throw' && game.uncoveredCount() === 0) {
+      } else if (game.attacker && game.attacker.id === myId &&
+          (game.phase === 'throw' || game.phase === 'attack') &&
+          game.table.length && game.uncoveredCount() === 0) {
         game.bito(myId);
+        sfxBito();
         renderFromGame();
       }
     }
@@ -158,14 +222,7 @@ function renderGameUI(state) {
     if (state.players[i].id === myId) me = state.players[i];
   }
 
-  var trumpInfo = CARD_SUITS[state.trump] || CARD_SUITS.spades;
-  var trumpEl = $('trump-suit');
-  if (trumpEl) {
-    trumpEl.textContent = trumpInfo.symbol;
-    trumpEl.className = 'trump-suit ' + trumpInfo.color;
-  }
-  var deckEl = $('deck-count');
-  if (deckEl) deckEl.textContent = state.deckCount;
+  renderTrumpPile(state);
 
   var oppRoot = $('opponents');
   if (oppRoot) {
@@ -177,17 +234,13 @@ function renderGameUI(state) {
       var div = document.createElement('div');
       div.className = 'opponent' + (active ? ' active' : '');
       div.innerHTML =
-        '<img class="avatar" src="" alt="" /><span class="name">' +
-        p.name +
-        '</span><span class="cards-count">' +
-        p.cardsCount +
-        '</span>';
+        '<img class="avatar" src="" alt="" /><span class="name">' + p.name +
+        '</span><span class="cards-count">' + p.cardsCount + '</span>';
       div.querySelector('img').src =
         'data:image/svg+xml,' +
         encodeURIComponent(
           '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36"><circle fill="#2a5a8c" cx="18" cy="18" r="18"/><text x="18" y="23" text-anchor="middle" fill="#fff" font-size="14">' +
-            (p.name || '?')[0] +
-            '</text></svg>'
+            (p.name || '?')[0] + '</text></svg>'
         );
       oppRoot.appendChild(div);
     }
@@ -212,19 +265,23 @@ function renderGameUI(state) {
         if (state.players[f].id === state.foolId) fool = state.players[f];
       }
       hint.textContent = fool
-        ? fool.id === myId
-          ? 'Вы — дурак'
-          : 'Дурак: ' + fool.name
+        ? fool.id === myId ? 'Вы — дурак' : 'Дурак: ' + fool.name
         : 'Игра окончена';
     }
   } else if (!state.table.length) {
     if (hint) {
       hint.classList.remove('hide');
-      hint.textContent =
-        role === 'attack' ? 'Ваш ход — атакуйте' : 'Ожидание хода...';
+      hint.textContent = role === 'attack' ? 'Ваш ход — атакуйте' : 'Ожидание хода...';
     }
   } else {
-    if (hint) hint.classList.add('hide');
+    if (hint) {
+      if (role === 'attack' && state.phase === 'throw') {
+        hint.classList.remove('hide');
+        hint.textContent = 'Подкиньте или Пас / Бито';
+      } else {
+        hint.classList.add('hide');
+      }
+    }
     for (var t = 0; t < state.table.length; t++) {
       var pair = state.table[t];
       var wrap = document.createElement('div');
@@ -250,6 +307,12 @@ function renderGameUI(state) {
     defendByCard[dk].push(dd.attackIndex);
   }
 
+  var canThrow = role === 'attack' && state.table.length > 0 && Object.keys(attackKeys).length > 0;
+  var allCovered = state.table.length > 0;
+  for (var c0 = 0; c0 < state.table.length; c0++) {
+    if (!state.table[c0].defend) allCovered = false;
+  }
+
   var handRoot = $('player-hand');
   if (handRoot) {
     handRoot.innerHTML = '';
@@ -268,15 +331,16 @@ function renderGameUI(state) {
           playable: !!canPlay,
           onClick: canPlay
             ? function () {
+                ensureAudio();
                 if (canAttack) {
                   var res = game.attack(myId, card);
                   if (!res.ok) flash(res.error);
-                  else renderFromGame();
+                  else { sfxPlay(); renderFromGame(); }
                 } else if (canDefend) {
                   var idx = defendByCard[key][0];
                   var res2 = game.defend(myId, idx, card);
                   if (!res2.ok) flash(res2.error);
-                  else renderFromGame();
+                  else { sfxDefend(); renderFromGame(); }
                 }
               }
             : null,
@@ -289,59 +353,82 @@ function renderGameUI(state) {
 
   var btnTake = $('btn-take');
   var btnDone = $('btn-done');
+  var btnPass = $('btn-pass');
   if (btnTake) btnTake.classList.add('hidden');
   if (btnDone) btnDone.classList.add('hidden');
-  var btnPass = $('btn-pass');
   if (btnPass) btnPass.classList.add('hidden');
 
   if (role === 'defend') {
     if (btnTake) btnTake.classList.remove('hidden');
-    var allCovered = state.table.length > 0;
-    for (var c = 0; c < state.table.length; c++) {
-      if (!state.table[c].defend) allCovered = false;
-    }
     if (allCovered && btnDone) {
       btnDone.classList.remove('hidden');
       btnDone.textContent = 'Бито';
     }
   } else if (role === 'attack') {
-    var allCovered2 = state.table.length > 0;
-    for (var c2 = 0; c2 < state.table.length; c2++) {
-      if (!state.table[c2].defend) allCovered2 = false;
-    }
-    if (allCovered2 && btnDone) {
-      btnDone.classList.remove('hidden');
-      btnDone.textContent = 'Бито';
+    if (allCovered) {
+      if (canThrow) {
+        // можно подкинуть или пас
+        if (btnPass) {
+          btnPass.classList.remove('hidden');
+          btnPass.textContent = 'Пас';
+        }
+        if (btnDone) {
+          btnDone.classList.remove('hidden');
+          btnDone.textContent = 'Бито';
+        }
+      } else {
+        if (btnPass) {
+          btnPass.classList.remove('hidden');
+          btnPass.textContent = 'Пас';
+        }
+        if (btnDone) {
+          btnDone.classList.remove('hidden');
+          btnDone.textContent = 'Бито';
+        }
+      }
     }
   }
 }
 
 function maybeBotTurn() {
-  if (!game || game.phase === 'finished') return;
+  if (!game || game.phase === 'finished' || mode !== 'bot') return;
 
   var actorId = null;
-  if (game.phase === 'defend' && isBotId(game.defender.id)) {
-    actorId = game.defender.id;
-  } else if ((game.phase === 'attack' || game.phase === 'throw') && isBotId(game.attacker.id)) {
+  if (game.phase === 'defend' && isBotId(game.defender.id)) actorId = game.defender.id;
+  else if ((game.phase === 'attack' || game.phase === 'throw') && isBotId(game.attacker.id)) {
     actorId = game.attacker.id;
   }
   if (!actorId) return;
 
   setTimeout(function () {
     if (!game || game.phase === 'finished') return;
-    if (game.phase === 'throw' && isBotId(game.attacker.id)) {
+    if ((game.phase === 'throw' || game.phase === 'attack') && isBotId(game.attacker.id)) {
       var moves = game.getLegalMoves(game.attacker.id);
-      if ((!moves.attacks || !moves.attacks.length) && game.uncoveredCount() === 0) {
-        game.bito(game.attacker.id);
-        renderFromGame();
-        return;
+      if (game.table.length && game.uncoveredCount() === 0) {
+        if (!moves.attacks || !moves.attacks.length) {
+          game.bito(game.attacker.id);
+          sfxBito();
+          renderFromGame();
+          return;
+        }
+        // бот иногда подкидывает, иногда пас
+        if (Math.random() < 0.45) {
+          game.bito(game.attacker.id);
+          sfxBito();
+          renderFromGame();
+          return;
+        }
       }
     }
     if (typeof window.durakBotMove === 'function') {
       var res = window.durakBotMove(game, actorId);
-      if (res && res.ok) renderFromGame();
-      else if (game.phase === 'throw' && isBotId(game.attacker.id) && game.uncoveredCount() === 0) {
+      if (res && res.ok) {
+        if (game.phase === 'defend' || res.state && res.state.phase === 'defend') sfxPlay();
+        else sfxDefend();
+        renderFromGame();
+      } else if (game.phase === 'throw' && isBotId(game.attacker.id) && game.uncoveredCount() === 0) {
         game.bito(game.attacker.id);
+        sfxBito();
         renderFromGame();
       }
     }
@@ -349,10 +436,12 @@ function maybeBotTurn() {
 }
 
 function startVsBot() {
+  ensureAudio();
   if (typeof window.DurakGame !== 'function') {
     flash('Движок не загрузился. Обновите страницу.');
     return;
   }
+  mode = 'bot';
   var name = (currentUser && currentUser.first_name) || 'Игрок';
   myId = String((currentUser && currentUser.telegram_id) || 'player');
 
@@ -371,16 +460,69 @@ function startVsBot() {
   renderFromGame();
 }
 
+function startOnline() {
+  ensureAudio();
+  mode = 'online';
+  game = null;
+  myId = String((currentUser && currentUser.telegram_id) || 'player');
+  var name = encodeURIComponent((currentUser && currentUser.first_name) || 'Игрок');
+  var roomId = 'quick_' + Math.floor(Date.now() / 20000);
+
+  showScreen('game');
+  $('table-hint').classList.remove('hide');
+  $('table-hint').textContent = 'Поиск соперника...';
+  $('player-hand').innerHTML = '';
+  $('opponents').innerHTML = '';
+  $('table-cards').innerHTML = '';
+
+  if (ws) try { ws.close(); } catch (e) {}
+  ws = new WebSocket(WS_BASE + '/ws/' + roomId + '?userId=' + encodeURIComponent(myId) + '&username=' + name);
+
+  ws.onopen = function () {
+    $('table-hint').textContent = 'Подключено. Ожидание...';
+    ws.send(JSON.stringify({ type: 'join', userId: myId, name: (currentUser && currentUser.first_name) || 'Игрок' }));
+  };
+  ws.onmessage = function (ev) {
+    try {
+      var msg = JSON.parse(ev.data);
+      if (msg.type === 'welcome' || msg.type === 'player_joined') {
+        var n = (msg.players && msg.players.length) || 1;
+        $('table-hint').textContent = 'В комнате: ' + n + '/2';
+      }
+      if (msg.type === 'state' && msg.state) {
+        renderOnlineState(msg.state);
+      }
+      if (msg.type === 'game_started') {
+        $('table-hint').textContent = 'Игра началась!';
+      }
+      if (msg.type === 'error') flash(msg.message);
+    } catch (e) {}
+  };
+  ws.onclose = function () {
+    $('table-hint').classList.remove('hide');
+    $('table-hint').textContent = 'Соединение закрыто';
+  };
+}
+
+function renderOnlineState(state) {
+  // Пока используем тот же UI; ходы через ws
+  // Для полной игры нужен локальный адаптер — state уже с сервера
+  if (!state) return;
+  // Временно показываем фазу
+  var hint = $('table-hint');
+  if (hint) {
+    hint.classList.remove('hide');
+    hint.textContent = 'Онлайн: ' + (state.phase || '') + ' (синхронизация UI в разработке)';
+  }
+  renderTrumpPile(state);
+}
+
 async function authenticate() {
   try {
     if (!tg || !tg.initData) {
       currentUser = {
-        telegram_id: 0,
-        first_name: 'Демо',
-        username: 'demo',
-        coins: 1000,
-        wins_random: 0,
-        photo_url: '',
+        telegram_id: 0, first_name: 'Демо', username: 'demo',
+        coins: 1000, wins_random: 0, photo_url: '',
       };
       authToken = '0';
       myId = 'player';
@@ -388,27 +530,21 @@ async function authenticate() {
       showScreen('menu');
       return;
     }
-
     var controller = new AbortController();
     var timeout = setTimeout(function () { controller.abort(); }, 8000);
-
     var res = await fetch(API_BASE + '/auth', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         initData: tg.initData,
-        referrerId:
-          tg.initDataUnsafe && tg.initDataUnsafe.start_param
-            ? parseInt(tg.initDataUnsafe.start_param, 10)
-            : null,
+        referrerId: tg.initDataUnsafe && tg.initDataUnsafe.start_param
+          ? parseInt(tg.initDataUnsafe.start_param, 10) : null,
       }),
       signal: controller.signal,
     });
     clearTimeout(timeout);
-
     var data = await res.json();
     if (!res.ok || !data.ok) throw new Error(data.error || 'auth error');
-
     currentUser = data.user;
     authToken = data.token;
     myId = String(currentUser.telegram_id);
@@ -417,12 +553,8 @@ async function authenticate() {
   } catch (err) {
     console.error(err);
     currentUser = {
-      telegram_id: 0,
-      first_name: 'Игрок',
-      username: 'guest',
-      coins: 0,
-      wins_random: 0,
-      photo_url: '',
+      telegram_id: 0, first_name: 'Игрок', username: 'guest',
+      coins: 0, wins_random: 0, photo_url: '',
     };
     myId = 'player';
     renderUser();
@@ -445,16 +577,11 @@ async function loadLeaderboard() {
     var html = '';
     for (var i = 0; i < data.leaderboard.length; i++) {
       var u = data.leaderboard[i];
-      html +=
-        '<div class="lb-item"><span class="lb-rank">' +
-        (i + 1) +
-        '</span><img src="' +
-        (u.photo_url || '') +
+      html += '<div class="lb-item"><span class="lb-rank">' + (i + 1) +
+        '</span><img src="' + (u.photo_url || '') +
         '" onerror="this.style.display=\'none\'" /><span class="lb-name">' +
         (u.first_name || u.username || '?') +
-        '</span><span class="lb-wins">' +
-        u.wins_random +
-        '</span></div>';
+        '</span><span class="lb-wins">' + u.wins_random + '</span></div>';
     }
     list.innerHTML = html;
   } catch (e) {
@@ -478,22 +605,24 @@ function bind() {
 
   var btnQuick = $('btn-quick');
   var btnBot = $('btn-vs-bot');
+  var btnOnline = $('btn-online');
   if (btnQuick) btnQuick.addEventListener('click', startVsBot);
   if (btnBot) btnBot.addEventListener('click', startVsBot);
+  if (btnOnline) btnOnline.addEventListener('click', startOnline);
 
   var btnLb = $('btn-leaderboard');
   if (btnLb) btnLb.addEventListener('click', loadLeaderboard);
 
   var btnBack = $('btn-back-lb');
-  if (btnBack) {
-    btnBack.addEventListener('click', function () { showScreen('menu'); });
-  }
+  if (btnBack) btnBack.addEventListener('click', function () { showScreen('menu'); });
 
   var btnLeave = $('btn-leave');
   if (btnLeave) {
     btnLeave.addEventListener('click', function () {
       clearInterval(timerInterval);
       game = null;
+      if (ws) try { ws.close(); } catch (e) {}
+      ws = null;
       showScreen('menu');
     });
   }
@@ -504,7 +633,7 @@ function bind() {
       if (!game) return;
       var res = game.take(myId);
       if (!res.ok) flash(res.error);
-      else renderFromGame();
+      else { sfxTake(); renderFromGame(); }
     });
   }
 
@@ -514,16 +643,31 @@ function bind() {
       if (!game) return;
       var res = game.bito(myId);
       if (!res.ok) flash(res.error);
-      else renderFromGame();
+      else { sfxBito(); renderFromGame(); }
+    });
+  }
+
+  var btnPass = $('btn-pass');
+  if (btnPass) {
+    btnPass.addEventListener('click', function () {
+      if (!game) return;
+      // Пас = не подкидывать = Бито
+      var res = game.bito(myId);
+      if (!res.ok) {
+        res = game.pass(myId);
+      }
+      if (!res.ok) flash(res.error);
+      else { sfxBito(); renderFromGame(); }
     });
   }
 
   ['btn-tournament', 'btn-friends', 'btn-shop', 'btn-settings'].forEach(function (id) {
     var el = $(id);
-    if (el) {
-      el.addEventListener('click', function () { flash('Скоро'); });
-    }
+    if (el) el.addEventListener('click', function () { flash('Скоро'); });
   });
+
+  document.body.addEventListener('touchstart', ensureAudio, { once: true });
+  document.body.addEventListener('click', ensureAudio, { once: true });
 }
 
 bind();
