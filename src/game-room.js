@@ -8,9 +8,8 @@ export class GameRoom {
   constructor(state, env) {
     this.state = state;
     this.env = env;
-    this.sessions = new Map(); // ws -> { userId, name }
+    this.sessions = new Map();
     this.game = null;
-    this.turnTimer = null;
     this.turnDeadline = 0;
   }
 
@@ -22,10 +21,23 @@ export class GameRoom {
       const [client, server] = Object.values(pair);
       server.accept();
 
-      const userId = url.searchParams.get('userId') || 'anon_' + Math.random().toString(36).slice(2, 8);
+      const userId =
+        url.searchParams.get('userId') ||
+        'anon_' + Math.random().toString(36).slice(2, 8);
       const username = url.searchParams.get('username') || 'Игрок';
 
-      this.sessions.set(server, { userId, name: decodeURIComponent(username) });
+      // не дублировать того же userId
+      for (const [ws, info] of this.sessions) {
+        if (info.userId === userId) {
+          try { ws.close(1000, 'replaced'); } catch (_) {}
+          this.sessions.delete(ws);
+        }
+      }
+
+      this.sessions.set(server, {
+        userId,
+        name: decodeURIComponent(username),
+      });
 
       server.addEventListener('message', (event) => {
         this.onMessage(server, event.data).catch((e) => {
@@ -38,7 +50,12 @@ export class GameRoom {
         const info = this.sessions.get(server);
         this.sessions.delete(server);
         if (info) {
-          this.broadcast({ type: 'player_left', userId: info.userId, name: info.name });
+          this.broadcast({
+            type: 'player_left',
+            userId: info.userId,
+            name: info.name,
+            players: this.listPlayers(),
+          });
         }
       });
 
@@ -47,13 +64,23 @@ export class GameRoom {
         userId,
         players: this.listPlayers(),
       });
-      this.broadcast({ type: 'player_joined', userId, name: decodeURIComponent(username), players: this.listPlayers() }, server);
+      this.broadcast(
+        {
+          type: 'player_joined',
+          userId,
+          name: decodeURIComponent(username),
+          players: this.listPlayers(),
+        },
+        server
+      );
 
-      // Автостарт на 2 игроков
       if (this.sessions.size >= 2 && !this.game) {
         this.startGame();
       } else if (this.game) {
-        this.send(server, { type: 'state', state: this.publicStateFor(userId) });
+        this.send(server, {
+          type: 'state',
+          state: this.publicStateFor(userId),
+        });
       }
 
       return new Response(null, { status: 101, webSocket: client });
@@ -70,13 +97,19 @@ export class GameRoom {
   }
 
   send(ws, msg) {
-    if (ws.readyState === 1) ws.send(JSON.stringify(msg));
+    try {
+      if (ws.readyState === 1) ws.send(JSON.stringify(msg));
+    } catch (_) {}
   }
 
   broadcast(msg, exclude = null) {
     const data = JSON.stringify(msg);
     for (const [ws] of this.sessions) {
-      if (ws !== exclude && ws.readyState === 1) ws.send(data);
+      if (ws !== exclude && ws.readyState === 1) {
+        try {
+          ws.send(data);
+        } catch (_) {}
+      }
     }
   }
 
@@ -88,7 +121,14 @@ export class GameRoom {
 
   publicStateFor(userId) {
     if (!this.game) return null;
-    return this.game.getPublicState(userId);
+    const state = this.game.getPublicState(userId);
+    const legal = this.game.getLegalMoves(userId);
+    state.legal = {
+      attacks: legal.attacks || [],
+      defends: legal.defends || [],
+    };
+    state.turnDeadline = this.turnDeadline;
+    return state;
   }
 
   startGame() {
@@ -99,14 +139,9 @@ export class GameRoom {
       players.map((p) => ({ id: p.userId, name: p.name }))
     );
     this.game.start();
+    this.turnDeadline = Date.now() + 15000;
     this.broadcast({ type: 'game_started' });
     this.broadcastState();
-    this.resetTurnTimer();
-  }
-
-  resetTurnTimer() {
-    // Durable Object timers: use alarm if needed; for MVP rely on client 15s + server validation
-    this.turnDeadline = Date.now() + 15000;
   }
 
   async onMessage(ws, raw) {
@@ -127,9 +162,22 @@ export class GameRoom {
 
     if (data.type === 'join') {
       info.name = data.name || info.name;
-      info.userId = data.userId || info.userId;
-      this.broadcast({ type: 'player_joined', userId: info.userId, name: info.name, players: this.listPlayers() });
+      if (data.userId) info.userId = String(data.userId);
+      this.broadcast({
+        type: 'player_joined',
+        userId: info.userId,
+        name: info.name,
+        players: this.listPlayers(),
+      });
       if (this.sessions.size >= 2 && !this.game) this.startGame();
+      else if (this.game) {
+        this.send(ws, { type: 'state', state: this.publicStateFor(info.userId) });
+      }
+      return;
+    }
+
+    if (data.type === 'ping') {
+      this.send(ws, { type: 'pong' });
       return;
     }
 
@@ -158,16 +206,23 @@ export class GameRoom {
         return;
     }
 
-    if (!result?.ok) {
-      this.send(ws, { type: 'error', message: result?.error || 'Invalid move' });
+    if (!result || !result.ok) {
+      this.send(ws, {
+        type: 'error',
+        message: (result && result.error) || 'Invalid move',
+      });
       return;
     }
 
+    this.turnDeadline = Date.now() + 15000;
     this.broadcastState();
-    this.resetTurnTimer();
 
     if (this.game.phase === 'finished') {
-      this.broadcast({ type: 'game_over', foolId: this.game.foolId, winners: this.game.winnerIds });
+      this.broadcast({
+        type: 'game_over',
+        foolId: this.game.foolId,
+        winners: this.game.winnerIds,
+      });
     }
   }
 }
