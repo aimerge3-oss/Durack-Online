@@ -68,8 +68,9 @@ body {
 .top-bar {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   padding: 4px 0 16px;
+  gap: 8px;
 }
 
 .user-info { display: flex; align-items: center; gap: 10px; }
@@ -77,10 +78,53 @@ body {
   width: 40px; height: 40px; border-radius: 50%;
   background: var(--btn); object-fit: cover;
 }
+
+.top-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
 .coins {
   background: rgba(0,0,0,0.3);
   padding: 6px 12px; border-radius: 20px;
   display: flex; align-items: center; gap: 6px; font-weight: 600;
+}
+
+.online-badge {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(0, 0, 0, 0.28);
+  padding: 4px 10px;
+  border-radius: 14px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.online-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #69f0ae;
+  box-shadow: 0 0 6px rgba(105, 240, 174, 0.8);
+  animation: onlinePulse 1.6s ease infinite;
+}
+
+@keyframes onlinePulse {
+  50% { opacity: 0.45; }
+}
+
+.online-label {
+  opacity: 0.7;
+  font-weight: 500;
+  font-size: 11px;
+}
+
+#online-count {
+  font-variant-numeric: tabular-nums;
+  min-width: 1ch;
 }
 
 .menu-buttons {
@@ -147,7 +191,6 @@ body {
 #timer.urgent { color: #ff5252; animation: pulse 0.6s ease infinite; }
 @keyframes pulse { 50% { opacity: 0.6; } }
 
-/* Колода + козырь */
 .deck-info {
   display: flex;
   align-items: center;
@@ -185,7 +228,6 @@ body {
   height: var(--card-h);
 }
 
-/* Козырная карта — видна слева от колоды */
 .trump-card-face {
   position: absolute;
   left: 0;
@@ -206,16 +248,8 @@ body {
   border: 1px solid rgba(0,0,0,0.08);
 }
 
-.trump-card-face .rank {
-  font-size: 16px;
-  line-height: 1;
-}
-
-.trump-card-face .suit {
-  font-size: 20px;
-  line-height: 1.1;
-}
-
+.trump-card-face .rank { font-size: 16px; line-height: 1; }
+.trump-card-face .suit { font-size: 20px; line-height: 1.1; }
 .trump-card-face.red { color: #c62828; }
 .trump-card-face.black { color: #212121; }
 
