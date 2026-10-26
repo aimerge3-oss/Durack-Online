@@ -1,14 +1,17 @@
 /**
- * Durable Object — игровая комната
- * На этапе 1 — заглушка. Полная логика Дурака будет в Этапе 1.
+ * Durable Object — игровая комната + Дурак
  */
+
+import { DurakGame } from './durak.js';
 
 export class GameRoom {
   constructor(state, env) {
     this.state = state;
     this.env = env;
-    this.sessions = new Map();
+    this.sessions = new Map(); // ws -> { userId, name }
     this.game = null;
+    this.turnTimer = null;
+    this.turnDeadline = 0;
   }
 
   async fetch(request) {
@@ -17,30 +20,41 @@ export class GameRoom {
     if (request.headers.get('Upgrade') === 'websocket') {
       const pair = new WebSocketPair();
       const [client, server] = Object.values(pair);
-
       server.accept();
 
-      const userId = url.searchParams.get('userId') || 'anon';
+      const userId = url.searchParams.get('userId') || 'anon_' + Math.random().toString(36).slice(2, 8);
       const username = url.searchParams.get('username') || 'Игрок';
 
-      this.sessions.set(server, { userId, username });
+      this.sessions.set(server, { userId, name: decodeURIComponent(username) });
 
       server.addEventListener('message', (event) => {
-        this.handleMessage(server, event.data);
+        this.onMessage(server, event.data).catch((e) => {
+          console.error(e);
+          this.send(server, { type: 'error', message: e.message });
+        });
       });
 
       server.addEventListener('close', () => {
+        const info = this.sessions.get(server);
         this.sessions.delete(server);
-        this.broadcast({ type: 'player_left', userId, username });
+        if (info) {
+          this.broadcast({ type: 'player_left', userId: info.userId, name: info.name });
+        }
       });
 
-      server.send(JSON.stringify({
+      this.send(server, {
         type: 'welcome',
-        message: `Добро пожаловать в комнату, ${username}!`,
-        players: Array.from(this.sessions.values())
-      }));
+        userId,
+        players: this.listPlayers(),
+      });
+      this.broadcast({ type: 'player_joined', userId, name: decodeURIComponent(username), players: this.listPlayers() }, server);
 
-      this.broadcast({ type: 'player_joined', userId, username }, server);
+      // Автостарт на 2 игроков
+      if (this.sessions.size >= 2 && !this.game) {
+        this.startGame();
+      } else if (this.game) {
+        this.send(server, { type: 'state', state: this.publicStateFor(userId) });
+      }
 
       return new Response(null, { status: 101, webSocket: client });
     }
@@ -48,25 +62,112 @@ export class GameRoom {
     return new Response('Expected WebSocket', { status: 400 });
   }
 
-  handleMessage(ws, raw) {
-    try {
-      const data = JSON.parse(raw);
-      this.broadcast({
-        type: 'chat',
-        from: this.sessions.get(ws)?.username || '???',
-        text: data.text || raw
-      });
-    } catch (e) {
-      ws.send(JSON.stringify({ type: 'error', message: e.message }));
+  listPlayers() {
+    return Array.from(this.sessions.values()).map((p) => ({
+      userId: p.userId,
+      name: p.name,
+    }));
+  }
+
+  send(ws, msg) {
+    if (ws.readyState === 1) ws.send(JSON.stringify(msg));
+  }
+
+  broadcast(msg, exclude = null) {
+    const data = JSON.stringify(msg);
+    for (const [ws] of this.sessions) {
+      if (ws !== exclude && ws.readyState === 1) ws.send(data);
     }
   }
 
-  broadcast(message, exclude = null) {
-    const data = JSON.stringify(message);
-    for (const [ws] of this.sessions) {
-      if (ws !== exclude && ws.readyState === 1) {
-        ws.send(data);
-      }
+  broadcastState() {
+    for (const [ws, info] of this.sessions) {
+      this.send(ws, { type: 'state', state: this.publicStateFor(info.userId) });
+    }
+  }
+
+  publicStateFor(userId) {
+    if (!this.game) return null;
+    return this.game.getPublicState(userId);
+  }
+
+  startGame() {
+    const players = this.listPlayers().slice(0, 6);
+    if (players.length < 2) return;
+
+    this.game = new DurakGame(
+      players.map((p) => ({ id: p.userId, name: p.name }))
+    );
+    this.game.start();
+    this.broadcast({ type: 'game_started' });
+    this.broadcastState();
+    this.resetTurnTimer();
+  }
+
+  resetTurnTimer() {
+    // Durable Object timers: use alarm if needed; for MVP rely on client 15s + server validation
+    this.turnDeadline = Date.now() + 15000;
+  }
+
+  async onMessage(ws, raw) {
+    let data;
+    try {
+      data = JSON.parse(raw);
+    } catch {
+      return;
+    }
+
+    const info = this.sessions.get(ws);
+    if (!info) return;
+
+    if (data.type === 'start_game') {
+      if (!this.game && this.sessions.size >= 2) this.startGame();
+      return;
+    }
+
+    if (data.type === 'join') {
+      info.name = data.name || info.name;
+      info.userId = data.userId || info.userId;
+      this.broadcast({ type: 'player_joined', userId: info.userId, name: info.name, players: this.listPlayers() });
+      if (this.sessions.size >= 2 && !this.game) this.startGame();
+      return;
+    }
+
+    if (!this.game) return;
+
+    const uid = info.userId;
+    let result = null;
+
+    switch (data.type) {
+      case 'attack':
+        result = this.game.attack(uid, data.card);
+        break;
+      case 'defend':
+        result = this.game.defend(uid, data.attackIndex, data.card);
+        break;
+      case 'take':
+        result = this.game.take(uid);
+        break;
+      case 'bito':
+        result = this.game.bito(uid);
+        break;
+      case 'pass':
+        result = this.game.pass(uid);
+        break;
+      default:
+        return;
+    }
+
+    if (!result?.ok) {
+      this.send(ws, { type: 'error', message: result?.error || 'Invalid move' });
+      return;
+    }
+
+    this.broadcastState();
+    this.resetTurnTimer();
+
+    if (this.game.phase === 'finished') {
+      this.broadcast({ type: 'game_over', foolId: this.game.foolId, winners: this.game.winnerIds });
     }
   }
 }
