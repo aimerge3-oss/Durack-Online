@@ -6,6 +6,7 @@
 import { handleAuth } from './auth.js';
 import { handleMe, handleLeaderboard } from './api.js';
 import { GameRoom } from './game-room.js';
+import { handleTelegramWebhook, handleSetWebhook } from './bot.js';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -22,7 +23,6 @@ function json(data, status = 200) {
 
 export default {
   async fetch(request, env, ctx) {
-    // CORS preflight
     if (request.method === 'OPTIONS') {
       return new Response(null, { headers: corsHeaders });
     }
@@ -41,6 +41,16 @@ export default {
         });
       }
 
+      // Telegram webhook
+      if (path === '/telegram' && request.method === 'POST') {
+        return handleTelegramWebhook(request, env);
+      }
+
+      // Один раз: установить webhook
+      if (path === '/set-webhook' && request.method === 'GET') {
+        return handleSetWebhook(request, env);
+      }
+
       // Auth
       if (path === '/auth' && request.method === 'POST') {
         return handleAuth(request, env);
@@ -56,12 +66,10 @@ export default {
         return handleLeaderboard(request, env);
       }
 
-      // WebSocket к комнате: /ws/:roomId
+      // WebSocket к комнате
       if (path.startsWith('/ws/') && request.method === 'GET') {
-        const roomId = path.slice(4); // убираем "/ws/"
-        if (!roomId) {
-          return json({ error: 'roomId required' }, 400);
-        }
+        const roomId = path.slice(4);
+        if (!roomId) return json({ error: 'roomId required' }, 400);
         const id = env.GAME_ROOM.idFromName(roomId);
         const stub = env.GAME_ROOM.get(id);
         return stub.fetch(request);
