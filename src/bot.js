@@ -2,7 +2,7 @@
  * Telegram Bot — обработка /start и webhook
  */
 
-const MINI_APP_URL = 'https://aimerge3-oss.github.io/Durack-Online/';
+const MINI_APP_URL = 'https://aimerge3-oss.github.io/Durack-Online/index.html';
 
 async function sendMessage(token, chatId, text, replyMarkup = null) {
   const body = {
@@ -46,7 +46,6 @@ export async function handleTelegramWebhook(request, env) {
   const text = (message.text || '').trim();
   const firstName = message.from?.first_name || 'игрок';
 
-  // /start или /start ref_XXXX
   if (text === '/start' || text.startsWith('/start ')) {
     const welcome =
       `Привет, <b>${escapeHtml(firstName)}</b>! 🃏\n\n` +
@@ -73,7 +72,6 @@ function escapeHtml(s) {
 }
 
 /**
- * Установка webhook (вызывается один раз)
  * GET /set-webhook
  */
 export async function handleSetWebhook(request, env) {
