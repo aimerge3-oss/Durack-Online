@@ -33,6 +33,7 @@ let authToken = null;
 let timerInterval = null;
 let timerSeconds = 15;
 let game = null;
+let onlineState = null;
 let myId = 'player';
 let playerCount = 2;
 let mode = 'bot';
@@ -169,13 +170,23 @@ function startTimer(seconds) {
     if (timerSeconds <= 0) {
       clearInterval(timerInterval);
       el.textContent = '0';
-      if (mode !== 'bot' || !game) return;
-      if (game.defender && game.defender.id === myId &&
-          (game.phase === 'defend' || game.phase === 'throw')) {
-        game.take(myId); sfxTake(); renderFromGame();
-      } else if (game.attacker && game.attacker.id === myId &&
-          game.table.length && game.uncoveredCount() === 0) {
-        game.bito(myId); sfxBito(); renderFromGame();
+      if (mode === 'bot' && game) {
+        if (game.defender && game.defender.id === myId &&
+            (game.phase === 'defend' || game.phase === 'throw')) {
+          game.take(myId); sfxTake(); renderFromGame();
+        } else if (game.attacker && game.attacker.id === myId &&
+            game.table.length && game.uncoveredCount() === 0) {
+          game.bito(myId); sfxBito(); renderFromGame();
+        }
+      } else if (mode === 'online' && onlineState && ws && ws.readyState === 1) {
+        var st = onlineState;
+        if (st.defenderId === myId && (st.phase === 'defend' || st.phase === 'throw')) {
+          ws.send(JSON.stringify({ type: 'take' }));
+        } else if (st.attackerId === myId && st.table && st.table.length) {
+          var uncovered = false;
+          for (var i = 0; i < st.table.length; i++) if (!st.table[i].defend) uncovered = true;
+          if (!uncovered) ws.send(JSON.stringify({ type: 'bito' }));
+        }
       }
     }
   }, 1000);
@@ -183,12 +194,28 @@ function startTimer(seconds) {
 
 function renderFromGame() {
   if (!game) return;
-  renderGameUI(game.getPublicState(myId));
+  renderTableState(game.getPublicState(myId), {
+    legal: game.getLegalMoves(myId),
+    onAttack: function (card) {
+      var res = game.attack(myId, card);
+      if (!res.ok) flash(res.error);
+      else { sfxPlay(); renderFromGame(); }
+    },
+    onDefend: function (idx, card) {
+      var res = game.defend(myId, idx, card);
+      if (!res.ok) flash(res.error);
+      else { sfxDefend(); renderFromGame(); }
+    },
+  });
   startTimer(15);
   maybeBotTurn();
 }
 
-function renderGameUI(state) {
+/** Общий рендер стола (бот и онлайн) */
+function renderTableState(state, opts) {
+  opts = opts || {};
+  var legal = opts.legal || state.legal || { attacks: [], defends: [] };
+
   var me = null;
   for (var i = 0; i < state.players.length; i++) {
     if (state.players[i].id === myId) me = state.players[i];
@@ -233,7 +260,7 @@ function renderGameUI(state) {
       }
       hint.textContent = fool ? (fool.id === myId ? 'Вы — дурак' : 'Дурак: ' + fool.name) : 'Игра окончена';
     }
-  } else if (!state.table.length) {
+  } else if (!state.table || !state.table.length) {
     if (hint) {
       hint.classList.remove('hide');
       hint.textContent = role === 'attack' ? 'Ваш ход — атакуйте' : 'Ожидание хода...';
@@ -242,7 +269,7 @@ function renderGameUI(state) {
     if (hint) {
       if (role === 'attack') {
         hint.classList.remove('hide');
-        hint.textContent = 'Подкиньте карту того же ранга или Пас';
+        hint.textContent = 'Подкиньте или Пас';
       } else {
         hint.classList.add('hide');
       }
@@ -257,7 +284,6 @@ function renderGameUI(state) {
     }
   }
 
-  var legal = game.getLegalMoves(myId);
   var attackKeys = {};
   for (var a = 0; a < (legal.attacks || []).length; a++) attackKeys[cardKey(legal.attacks[a])] = true;
   var defendByCard = {};
@@ -268,10 +294,12 @@ function renderGameUI(state) {
     defendByCard[dk].push(dd.attackIndex);
   }
 
-  var allCovered = state.table.length > 0;
-  for (var c0 = 0; c0 < state.table.length; c0++) {
-    if (!state.table[c0].defend) allCovered = false;
-  }
+  var allCovered = state.table && state.table.length > 0;
+  if (state.table) {
+    for (var c0 = 0; c0 < state.table.length; c0++) {
+      if (!state.table[c0].defend) allCovered = false;
+    }
+  } else allCovered = false;
 
   var handRoot = $('player-hand');
   if (handRoot) {
@@ -291,16 +319,8 @@ function renderGameUI(state) {
           playable: !!canPlay,
           onClick: canPlay ? function () {
             ensureAudio();
-            if (canAttack) {
-              var res = game.attack(myId, card);
-              if (!res.ok) flash(res.error);
-              else { sfxPlay(); renderFromGame(); }
-            } else if (canDefend) {
-              var idx = defendByCard[key][0];
-              var res2 = game.defend(myId, idx, card);
-              if (!res2.ok) flash(res2.error);
-              else { sfxDefend(); renderFromGame(); }
-            }
+            if (canAttack && opts.onAttack) opts.onAttack(card);
+            else if (canDefend && opts.onDefend) opts.onDefend(defendByCard[key][0], card);
           } : null,
         });
         handRoot.appendChild(el);
@@ -319,7 +339,7 @@ function renderGameUI(state) {
       btnDone.classList.remove('hidden');
       btnDone.textContent = 'Бито';
     }
-  } else if (role === 'attack' && state.table.length > 0) {
+  } else if (role === 'attack' && state.table && state.table.length > 0) {
     if (allCovered) {
       if (btnPass) { btnPass.classList.remove('hidden'); btnPass.textContent = 'Пас'; }
       if (btnDone) { btnDone.classList.remove('hidden'); btnDone.textContent = 'Бито'; }
@@ -340,7 +360,7 @@ function maybeBotTurn() {
 
   setTimeout(function () {
     if (!game || game.phase === 'finished') return;
-    if ((game.phase === 'throw') && isBotId(game.attacker.id)) {
+    if (game.phase === 'throw' && isBotId(game.attacker.id)) {
       var moves = game.getLegalMoves(game.attacker.id);
       if (game.table.length && game.uncoveredCount() === 0) {
         if (!moves.attacks || !moves.attacks.length || Math.random() < 0.4) {
@@ -365,6 +385,7 @@ function startVsBot() {
     return;
   }
   mode = 'bot';
+  onlineState = null;
   var name = (currentUser && currentUser.first_name) || 'Игрок';
   myId = String((currentUser && currentUser.telegram_id) || 'player');
   var players = [{ id: myId, name: name }];
@@ -382,47 +403,103 @@ function startOnline() {
   ensureAudio();
   mode = 'online';
   game = null;
-  myId = String((currentUser && currentUser.telegram_id) || 'player');
+  onlineState = null;
+  myId = String((currentUser && currentUser.telegram_id) || ('guest_' + Math.random().toString(36).slice(2, 8)));
   var name = encodeURIComponent((currentUser && currentUser.first_name) || 'Игрок');
-  var roomId = 'quick_' + Math.floor(Date.now() / 20000);
+  // окно 30 сек — два игрока попадают в одну комнату
+  var roomId = 'quick_' + Math.floor(Date.now() / 30000);
+
   showScreen('game');
   $('table-hint').classList.remove('hide');
   $('table-hint').textContent = 'Поиск соперника...';
   $('player-hand').innerHTML = '';
   $('opponents').innerHTML = '';
   $('table-cards').innerHTML = '';
+  ['btn-take', 'btn-done', 'btn-pass'].forEach(function (id) {
+    var b = $(id); if (b) b.classList.add('hidden');
+  });
+
   if (ws) try { ws.close(); } catch (e) {}
-  ws = new WebSocket(WS_BASE + '/ws/' + roomId + '?userId=' + encodeURIComponent(myId) + '&username=' + name);
+  ws = new WebSocket(
+    WS_BASE + '/ws/' + roomId +
+    '?userId=' + encodeURIComponent(myId) +
+    '&username=' + name
+  );
+
   ws.onopen = function () {
-    $('table-hint').textContent = 'Подключено...';
-    ws.send(JSON.stringify({ type: 'join', userId: myId, name: (currentUser && currentUser.first_name) || 'Игрок' }));
+    $('table-hint').textContent = 'Подключено. Ожидание...';
+    ws.send(JSON.stringify({
+      type: 'join',
+      userId: myId,
+      name: (currentUser && currentUser.first_name) || 'Игрок',
+    }));
   };
+
   ws.onmessage = function (ev) {
     try {
       var msg = JSON.parse(ev.data);
-      if (msg.type === 'welcome' || msg.type === 'player_joined') {
+      if (msg.type === 'welcome' || msg.type === 'player_joined' || msg.type === 'player_left') {
         var n = (msg.players && msg.players.length) || 1;
-        $('table-hint').textContent = 'В комнате: ' + n + '/2';
+        if (!onlineState) {
+          $('table-hint').classList.remove('hide');
+          $('table-hint').textContent = 'В комнате: ' + n + '/2 — ждём второго';
+        }
       }
-      if (msg.type === 'state' && msg.state) renderOnlineState(msg.state);
-      if (msg.type === 'game_started') $('table-hint').textContent = 'Игра!';
+      if (msg.type === 'game_started') {
+        sfxPlay();
+      }
+      if (msg.type === 'state' && msg.state) {
+        onlineState = msg.state;
+        renderOnlineState(msg.state);
+      }
+      if (msg.type === 'game_over') {
+        flash(msg.foolId === myId ? 'Вы — дурак' : 'Игра окончена');
+      }
       if (msg.type === 'error') flash(msg.message);
-    } catch (e) {}
+    } catch (e) {
+      console.error(e);
+    }
   };
+
   ws.onclose = function () {
-    $('table-hint').classList.remove('hide');
-    $('table-hint').textContent = 'Соединение закрыто';
+    if (mode === 'online') {
+      $('table-hint').classList.remove('hide');
+      $('table-hint').textContent = 'Соединение закрыто';
+    }
+  };
+
+  ws.onerror = function () {
+    flash('WebSocket error');
   };
 }
 
 function renderOnlineState(state) {
   if (!state) return;
-  renderTrumpPile(state);
-  var hint = $('table-hint');
-  if (hint) {
-    hint.classList.remove('hide');
-    hint.textContent = 'Онлайн: ' + (state.phase || '');
+  showScreen('game');
+  renderTableState(state, {
+    legal: state.legal || { attacks: [], defends: [] },
+    onAttack: function (card) {
+      if (!ws || ws.readyState !== 1) return;
+      sfxPlay();
+      ws.send(JSON.stringify({ type: 'attack', card: card }));
+    },
+    onDefend: function (idx, card) {
+      if (!ws || ws.readyState !== 1) return;
+      sfxDefend();
+      ws.send(JSON.stringify({ type: 'defend', attackIndex: idx, card: card }));
+    },
+  });
+  var left = 15;
+  if (state.turnDeadline) {
+    left = Math.max(1, Math.ceil((state.turnDeadline - Date.now()) / 1000));
   }
+  startTimer(left);
+}
+
+function wsSend(type, extra) {
+  if (!ws || ws.readyState !== 1) return;
+  var msg = Object.assign({ type: type }, extra || {});
+  ws.send(JSON.stringify(msg));
 }
 
 async function authenticate() {
@@ -498,26 +575,37 @@ function bind() {
   if ($('btn-leaderboard')) $('btn-leaderboard').addEventListener('click', loadLeaderboard);
   if ($('btn-back-lb')) $('btn-back-lb').addEventListener('click', function () { showScreen('menu'); });
   if ($('btn-leave')) $('btn-leave').addEventListener('click', function () {
-    clearInterval(timerInterval); game = null;
+    clearInterval(timerInterval); game = null; onlineState = null;
     if (ws) try { ws.close(); } catch (e) {}
     ws = null; showScreen('menu');
   });
+
   if ($('btn-take')) $('btn-take').addEventListener('click', function () {
-    if (!game) return;
-    var res = game.take(myId);
-    if (!res.ok) flash(res.error); else { sfxTake(); renderFromGame(); }
+    if (mode === 'bot' && game) {
+      var res = game.take(myId);
+      if (!res.ok) flash(res.error); else { sfxTake(); renderFromGame(); }
+    } else if (mode === 'online') {
+      sfxTake(); wsSend('take');
+    }
   });
   if ($('btn-done')) $('btn-done').addEventListener('click', function () {
-    if (!game) return;
-    var res = game.bito(myId);
-    if (!res.ok) flash(res.error); else { sfxBito(); renderFromGame(); }
+    if (mode === 'bot' && game) {
+      var res = game.bito(myId);
+      if (!res.ok) flash(res.error); else { sfxBito(); renderFromGame(); }
+    } else if (mode === 'online') {
+      sfxBito(); wsSend('bito');
+    }
   });
   if ($('btn-pass')) $('btn-pass').addEventListener('click', function () {
-    if (!game) return;
-    var res = game.bito(myId);
-    if (!res.ok) res = game.pass(myId);
-    if (!res.ok) flash(res.error); else { sfxBito(); renderFromGame(); }
+    if (mode === 'bot' && game) {
+      var res = game.bito(myId);
+      if (!res.ok) res = game.pass(myId);
+      if (!res.ok) flash(res.error); else { sfxBito(); renderFromGame(); }
+    } else if (mode === 'online') {
+      sfxBito(); wsSend('pass');
+    }
   });
+
   ['btn-tournament', 'btn-friends', 'btn-shop', 'btn-settings'].forEach(function (id) {
     var el = $(id);
     if (el) el.addEventListener('click', function () { flash('Скоро'); });
