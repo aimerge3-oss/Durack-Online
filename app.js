@@ -137,13 +137,20 @@ function createCardEl(card, opts) {
 function renderTrumpPile(state) {
   var face = $('trump-card-face');
   var count = $('deck-count');
+  var big = $('trump-suit-big');
   if (count) count.textContent = state.deckCount;
-  if (!face) return;
   var card = state.trumpCard || { rank: '6', suit: state.trump };
-  var suitInfo = CARD_SUITS[card.suit] || CARD_SUITS.spades;
-  face.className = 'trump-card-face ' + suitInfo.color;
-  face.innerHTML = '<span class="rank">' + (RANK_LABEL[card.rank] || card.rank) +
-    '</span><span class="suit">' + suitInfo.symbol + '</span>';
+  var suitInfo = CARD_SUITS[card.suit] || CARD_SUITS[state.trump] || CARD_SUITS.spades;
+  if (face) {
+    face.className = 'trump-card-face ' + suitInfo.color;
+    face.innerHTML = '<span class="rank">' + (RANK_LABEL[card.rank] || card.rank) +
+      '</span><span class="suit">' + suitInfo.symbol + '</span>';
+    face.style.display = state.deckCount > 0 || state.trumpCard ? 'flex' : 'none';
+  }
+  if (big) {
+    big.textContent = suitInfo.symbol;
+    big.className = 'trump-suit-big ' + suitInfo.color;
+  }
   var stack = $('deck-stack');
   if (stack) stack.style.display = state.deckCount > 0 ? 'block' : 'none';
 }
@@ -327,7 +334,6 @@ function maybeBotTurn() {
   else if ((game.phase === 'attack' || game.phase === 'throw') && isBotId(game.attacker.id))
     actorId = game.attacker.id;
   else if (game.phase === 'defend' && isBotId(game.attacker.id)) {
-    // бот может подкинуть во время отбоя — редко
     if (Math.random() < 0.35) actorId = game.attacker.id;
   }
   if (!actorId) return;
