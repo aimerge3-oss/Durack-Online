@@ -12,23 +12,22 @@
   --accent: #4fc3f7;
   --primary: #0288d1;
   --btn: #2a5a8c;
-  --danger: #e57373;
   --radius: 12px;
-  --card-w: 52px;
-  --card-h: 74px;
+  --card-w: 48px;
+  --card-h: 68px;
+}
+
+@media (min-width: 400px) {
+  :root {
+    --card-w: 54px;
+    --card-h: 76px;
+  }
 }
 
 @media (min-width: 480px) {
   :root {
-    --card-w: 64px;
-    --card-h: 90px;
-  }
-}
-
-@media (min-width: 768px) {
-  :root {
-    --card-w: 72px;
-    --card-h: 100px;
+    --card-w: 60px;
+    --card-h: 84px;
   }
 }
 
@@ -50,7 +49,7 @@ body {
 
 @media (min-width: 768px) {
   #app {
-    max-width: 560px;
+    max-width: 520px;
     box-shadow: 0 0 40px rgba(0,0,0,0.4);
   }
 }
@@ -124,6 +123,43 @@ body {
   width: 100%;
 }
 
+.player-count-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background: rgba(0,0,0,0.25);
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  margin-bottom: 4px;
+}
+
+.player-count-row span {
+  font-size: 14px;
+  opacity: 0.9;
+}
+
+.player-count-btns {
+  display: flex;
+  gap: 6px;
+}
+
+.player-count-btns button {
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 8px;
+  background: var(--btn);
+  color: #fff;
+  font-weight: 700;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.player-count-btns button.active {
+  background: linear-gradient(135deg, var(--accent), var(--primary));
+}
+
 .btn {
   background: var(--btn);
   color: #fff;
@@ -140,10 +176,6 @@ body {
 
 .btn.primary {
   background: linear-gradient(135deg, var(--accent), var(--primary));
-}
-
-.btn.primary:active {
-  background: linear-gradient(135deg, var(--primary), #01579b);
 }
 
 .btn-back {
@@ -170,11 +202,7 @@ body {
   margin-bottom: 16px;
 }
 
-.list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
+.list { display: flex; flex-direction: column; gap: 8px; }
 
 .lb-item {
   display: flex;
@@ -192,7 +220,7 @@ body {
 
 #game {
   padding-bottom: 8px;
-  gap: 8px;
+  gap: 6px;
 }
 
 .game-top {
@@ -219,10 +247,7 @@ body {
 }
 
 #timer.urgent { color: #ff5252; animation: pulse 0.6s ease infinite; }
-
-@keyframes pulse {
-  50% { opacity: 0.6; }
-}
+@keyframes pulse { 50% { opacity: 0.6; } }
 
 .deck-info {
   display: flex;
@@ -241,9 +266,9 @@ body {
 .opponents {
   display: flex;
   justify-content: center;
-  gap: 16px;
+  gap: 12px;
   flex-wrap: wrap;
-  min-height: 56px;
+  min-height: 52px;
   flex-shrink: 0;
 }
 
@@ -251,13 +276,13 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
-  min-width: 56px;
+  gap: 3px;
+  min-width: 48px;
 }
 
 .opponent .avatar {
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   border: 2px solid transparent;
 }
 
@@ -267,16 +292,16 @@ body {
 }
 
 .opponent .name {
-  font-size: 11px;
+  font-size: 10px;
   opacity: 0.9;
-  max-width: 64px;
+  max-width: 56px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .opponent .cards-count {
-  font-size: 12px;
+  font-size: 11px;
   background: rgba(0,0,0,0.4);
   padding: 1px 6px;
   border-radius: 8px;
@@ -290,25 +315,24 @@ body {
   justify-content: center;
   background: var(--bg-dark);
   border-radius: 16px;
-  min-height: 140px;
+  min-height: 120px;
   position: relative;
-  padding: 16px 12px;
+  padding: 14px 10px;
 }
 
 .table-cards {
   display: flex;
   flex-wrap: wrap;
-  gap: 14px 16px;
+  gap: 12px 14px;
   justify-content: center;
   align-items: flex-start;
   max-width: 100%;
 }
 
-/* Пара: атака слева-сверху, защита справа-низу — обе видны */
 .table-pair {
   position: relative;
-  width: calc(var(--card-w) + 22px);
-  height: calc(var(--card-h) + 28px);
+  width: calc(var(--card-w) + 20px);
+  height: calc(var(--card-h) + 24px);
 }
 
 .table-pair .card.attack {
@@ -320,8 +344,8 @@ body {
 
 .table-pair .card.defend {
   position: absolute;
-  top: 22px;
-  left: 20px;
+  top: 20px;
+  left: 18px;
   z-index: 2;
   transform: rotate(12deg);
   box-shadow: -2px 2px 8px rgba(0,0,0,0.4);
@@ -329,7 +353,7 @@ body {
 
 .table-pair.uncovered {
   outline: 2px dashed rgba(255, 235, 59, 0.7);
-  outline-offset: 4px;
+  outline-offset: 3px;
   border-radius: 10px;
 }
 
@@ -349,31 +373,25 @@ body {
   height: var(--card-h);
   background: var(--card-bg);
   border-radius: 6px;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.35);
+  box-shadow: 0 2px 5px rgba(0,0,0,0.3);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   font-weight: 700;
-  font-size: 15px;
+  font-size: 14px;
   color: #222;
   position: relative;
   cursor: pointer;
-  transition: transform 0.12s, box-shadow 0.12s;
+  transition: transform 0.12s;
   flex-shrink: 0;
 }
 
-.card .rank { font-size: 16px; line-height: 1; }
-.card .suit { font-size: 18px; line-height: 1.1; }
+.card .rank { font-size: 15px; line-height: 1; }
+.card .suit { font-size: 16px; line-height: 1.1; }
 
 .card.red { color: #c62828; }
 .card.black { color: #212121; }
-
-.card.selected {
-  transform: translateY(-12px);
-  box-shadow: 0 6px 14px rgba(0,0,0,0.45);
-  outline: 2px solid var(--accent);
-}
 
 .card.playable:active {
   transform: translateY(-8px);
@@ -385,34 +403,51 @@ body {
   border: 1px solid rgba(255,255,255,0.15);
 }
 
-.card.back::after {
-  content: '';
-  position: absolute;
-  inset: 4px;
-  border: 1px solid rgba(255,255,255,0.2);
-  border-radius: 4px;
-}
-
+/* Рука: карты наложены, без скролла */
 .hand-area {
   flex-shrink: 0;
-  padding: 4px 0;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
+  padding: 2px 0 0;
+  overflow: hidden;
 }
 
 .hand {
   display: flex;
   justify-content: center;
-  gap: 4px;
-  min-height: var(--card-h);
-  padding: 8px 4px 4px;
+  align-items: flex-end;
+  min-height: calc(var(--card-h) + 10px);
+  padding: 6px 2px 4px;
+  width: 100%;
 }
 
-.hand .card { margin-left: -8px; }
-.hand .card:first-child { margin-left: 0; }
+.hand .card {
+  margin-left: -18px;
+}
 
-@media (min-width: 400px) {
-  .hand .card { margin-left: -4px; }
+.hand .card:first-child {
+  margin-left: 0;
+}
+
+/* Много карт — сильнее перекрытие */
+.hand.many .card {
+  margin-left: -26px;
+}
+
+.hand.many .card:first-child {
+  margin-left: 0;
+}
+
+.hand.crowded .card {
+  margin-left: -32px;
+}
+
+.hand.crowded .card:first-child {
+  margin-left: 0;
+}
+
+.hand .card:hover,
+.hand .card.playable:active {
+  z-index: 5;
+  transform: translateY(-10px);
 }
 
 .actions {
@@ -426,9 +461,4 @@ body {
 .action-btn {
   min-width: 110px;
   padding: 12px 18px;
-}
-
-.action-btn:disabled {
-  opacity: 0.4;
-  pointer-events: none;
 }
