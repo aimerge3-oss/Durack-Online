@@ -1,0 +1,25 @@
+name = "durack-online"
+main = "src/index.js"
+compatibility_date = "2024-11-01"
+workers_dev = true
+
+# Будущий URL: https://durack-online.pozzistory666.workers.dev
+
+[[d1_databases]]
+binding = "DB"
+database_name = "durack-db"
+database_id = "REPLACE_WITH_YOUR_D1_ID"   # после создания: wrangler d1 create durack-db
+
+# Durable Objects для комнат (realtime)
+[[durable_objects.bindings]]
+name = "GAME_ROOM"
+class_name = "GameRoom"
+
+[[migrations]]
+tag = "v1"
+new_classes = ["GameRoom"]
+
+[vars]
+# TELEGRAM_BOT_TOKEN будет в Secrets (не коммитить!)
+# ENVIRONMENT = "development"
+REQUIRE_CHANNEL_SUB = "false"   # отключено на этапе разработки
