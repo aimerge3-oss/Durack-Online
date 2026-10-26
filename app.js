@@ -43,9 +43,16 @@ let audioCtx = null;
 function $(id) { return document.getElementById(id); }
 
 const screens = {
-  loading: $('loading'), menu: $('menu'), leaderboard: $('leaderboard'), game: $('game'),
+  loading: $('loading'),
+  menu: $('menu'),
+  leaderboard: $('leaderboard'),
+  shop: $('shop'),
+  friends: $('friends'),
+  referral: $('referral'),
+  game: $('game'),
 };
 
+window.showScreen = showScreen;
 function showScreen(name) {
   Object.keys(screens).forEach(function (k) {
     if (screens[k]) screens[k].classList.add('hidden');
@@ -62,6 +69,7 @@ function ensureAudio() {
   }
   if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume().catch(function () {});
 }
+window.ensureAudio = ensureAudio;
 
 function playTone(freq, dur, type, vol) {
   ensureAudio();
@@ -92,6 +100,7 @@ function sfxBito() {
   playTone(600, 0.08, 'sine', 0.07);
   setTimeout(function () { playTone(800, 0.1, 'sine', 0.06); }, 70);
 }
+window.sfxPlay = sfxPlay;
 
 function flash(msg) {
   if (tg && tg.showAlert) tg.showAlert(String(msg));
@@ -100,6 +109,7 @@ function flash(msg) {
     if (hint) { hint.classList.remove('hide'); hint.textContent = String(msg); }
   }
 }
+window.flash = flash;
 
 function renderUser() {
   if (!currentUser) return;
@@ -114,6 +124,7 @@ function renderUser() {
         letter + '</text></svg>');
   }
 }
+window.renderUser = renderUser;
 
 function createCardEl(card, opts) {
   opts = opts || {};
@@ -211,7 +222,6 @@ function renderFromGame() {
   maybeBotTurn();
 }
 
-/** Общий рендер стола (бот и онлайн) */
 function renderTableState(state, opts) {
   opts = opts || {};
   var legal = opts.legal || state.legal || { attacks: [], defends: [] };
@@ -400,81 +410,52 @@ function startVsBot() {
 }
 
 function startOnline() {
+  var pc = playerCount || 2;
+  var slot = Math.floor(Date.now() / 15000);
+  if (typeof window.startOnlineRoom === 'function') {
+    window.startOnlineRoom('mm_' + pc + '_' + slot);
+    return;
+  }
   ensureAudio();
   mode = 'online';
   game = null;
   onlineState = null;
   myId = String((currentUser && currentUser.telegram_id) || ('guest_' + Math.random().toString(36).slice(2, 8)));
   var name = encodeURIComponent((currentUser && currentUser.first_name) || 'Игрок');
-  // окно 30 сек — два игрока попадают в одну комнату
-  var roomId = 'quick_' + Math.floor(Date.now() / 30000);
-
+  var roomId = 'mm_' + pc + '_' + slot;
   showScreen('game');
   $('table-hint').classList.remove('hide');
   $('table-hint').textContent = 'Поиск соперника...';
   $('player-hand').innerHTML = '';
   $('opponents').innerHTML = '';
   $('table-cards').innerHTML = '';
-  ['btn-take', 'btn-done', 'btn-pass'].forEach(function (id) {
-    var b = $(id); if (b) b.classList.add('hidden');
-  });
-
   if (ws) try { ws.close(); } catch (e) {}
-  ws = new WebSocket(
-    WS_BASE + '/ws/' + roomId +
-    '?userId=' + encodeURIComponent(myId) +
-    '&username=' + name
-  );
-
+  ws = new WebSocket(WS_BASE + '/ws/' + roomId + '?userId=' + encodeURIComponent(myId) + '&username=' + name);
   ws.onopen = function () {
-    $('table-hint').textContent = 'Подключено. Ожидание...';
-    ws.send(JSON.stringify({
-      type: 'join',
-      userId: myId,
-      name: (currentUser && currentUser.first_name) || 'Игрок',
-    }));
+    $('table-hint').textContent = 'Подключено...';
+    ws.send(JSON.stringify({ type: 'join', userId: myId, name: (currentUser && currentUser.first_name) || 'Игрок' }));
   };
-
   ws.onmessage = function (ev) {
     try {
       var msg = JSON.parse(ev.data);
-      if (msg.type === 'welcome' || msg.type === 'player_joined' || msg.type === 'player_left') {
+      if (msg.type === 'welcome' || msg.type === 'player_joined') {
         var n = (msg.players && msg.players.length) || 1;
-        if (!onlineState) {
-          $('table-hint').classList.remove('hide');
-          $('table-hint').textContent = 'В комнате: ' + n + '/2 — ждём второго';
-        }
+        $('table-hint').textContent = 'В комнате: ' + n + '/2';
       }
-      if (msg.type === 'game_started') {
-        sfxPlay();
-      }
-      if (msg.type === 'state' && msg.state) {
-        onlineState = msg.state;
-        renderOnlineState(msg.state);
-      }
-      if (msg.type === 'game_over') {
-        flash(msg.foolId === myId ? 'Вы — дурак' : 'Игра окончена');
-      }
+      if (msg.type === 'state' && msg.state) renderOnlineState(msg.state);
       if (msg.type === 'error') flash(msg.message);
-    } catch (e) {
-      console.error(e);
-    }
+    } catch (e) {}
   };
-
   ws.onclose = function () {
-    if (mode === 'online') {
-      $('table-hint').classList.remove('hide');
-      $('table-hint').textContent = 'Соединение закрыто';
-    }
-  };
-
-  ws.onerror = function () {
-    flash('WebSocket error');
+    $('table-hint').classList.remove('hide');
+    $('table-hint').textContent = 'Соединение закрыто';
   };
 }
+window.startOnline = startOnline;
 
 function renderOnlineState(state) {
   if (!state) return;
+  onlineState = state;
   showScreen('game');
   renderTableState(state, {
     legal: state.legal || { attacks: [], defends: [] },
@@ -490,11 +471,10 @@ function renderOnlineState(state) {
     },
   });
   var left = 15;
-  if (state.turnDeadline) {
-    left = Math.max(1, Math.ceil((state.turnDeadline - Date.now()) / 1000));
-  }
+  if (state.turnDeadline) left = Math.max(1, Math.ceil((state.turnDeadline - Date.now()) / 1000));
   startTimer(left);
 }
+window.renderOnlineState = renderOnlineState;
 
 function wsSend(type, extra) {
   if (!ws || ws.readyState !== 1) return;
@@ -506,7 +486,7 @@ async function authenticate() {
   try {
     if (!tg || !tg.initData) {
       currentUser = { telegram_id: 0, first_name: 'Демо', username: 'demo', coins: 1000, wins_random: 0, photo_url: '' };
-      authToken = '0'; myId = 'player';
+      authToken = '0'; window.__authToken = '0'; myId = 'player';
       renderUser(); showScreen('menu'); return;
     }
     var controller = new AbortController();
@@ -524,7 +504,7 @@ async function authenticate() {
     clearTimeout(timeout);
     var data = await res.json();
     if (!res.ok || !data.ok) throw new Error(data.error || 'auth error');
-    currentUser = data.user; authToken = data.token;
+    currentUser = data.user; authToken = data.token; window.__authToken = data.token;
     myId = String(currentUser.telegram_id);
     renderUser(); showScreen('menu');
   } catch (err) {
@@ -606,10 +586,27 @@ function bind() {
     }
   });
 
-  ['btn-tournament', 'btn-friends', 'btn-shop', 'btn-settings'].forEach(function (id) {
+  ['btn-tournament', 'btn-settings'].forEach(function (id) {
     var el = $(id);
     if (el) el.addEventListener('click', function () { flash('Скоро'); });
   });
+
+  if ($('btn-shop')) $('btn-shop').addEventListener('click', function () {
+    if (typeof window.openShopScreen === 'function') window.openShopScreen();
+    else showScreen('shop');
+  });
+  if ($('btn-friends')) $('btn-friends').addEventListener('click', function () {
+    if (typeof window.openFriendsScreen === 'function') window.openFriendsScreen();
+    else showScreen('friends');
+  });
+  if ($('btn-referral')) $('btn-referral').addEventListener('click', function () {
+    if (typeof window.openReferralScreen === 'function') window.openReferralScreen();
+    else showScreen('referral');
+  });
+  if ($('btn-back-shop')) $('btn-back-shop').addEventListener('click', function () { showScreen('menu'); });
+  if ($('btn-back-friends')) $('btn-back-friends').addEventListener('click', function () { showScreen('menu'); });
+  if ($('btn-back-ref')) $('btn-back-ref').addEventListener('click', function () { showScreen('menu'); });
+
   document.body.addEventListener('touchstart', ensureAudio, { once: true });
   document.body.addEventListener('click', ensureAudio, { once: true });
 }
