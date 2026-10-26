@@ -167,7 +167,6 @@ function startTimer(seconds) {
           (game.phase === 'defend' || game.phase === 'throw')) {
         game.take(myId); sfxTake(); renderFromGame();
       } else if (game.attacker && game.attacker.id === myId &&
-          (game.phase === 'throw' || game.phase === 'attack') &&
           game.table.length && game.uncoveredCount() === 0) {
         game.bito(myId); sfxBito(); renderFromGame();
       }
@@ -212,7 +211,7 @@ function renderGameUI(state) {
   var role = 'wait';
   if (state.phase === 'finished') role = 'finished';
   else if (isDefender && (state.phase === 'defend' || state.phase === 'throw')) role = 'defend';
-  else if (isAttacker && (state.phase === 'attack' || state.phase === 'throw')) role = 'attack';
+  else if (isAttacker && (state.phase === 'attack' || state.phase === 'throw' || state.phase === 'defend')) role = 'attack';
 
   var tableRoot = $('table-cards');
   var hint = $('table-hint');
@@ -234,10 +233,12 @@ function renderGameUI(state) {
     }
   } else {
     if (hint) {
-      if (role === 'attack' && state.phase === 'throw') {
+      if (role === 'attack') {
         hint.classList.remove('hide');
-        hint.textContent = 'Подкиньте или Пас / Бито';
-      } else hint.classList.add('hide');
+        hint.textContent = 'Подкиньте карту того же ранга или Пас';
+      } else {
+        hint.classList.add('hide');
+      }
     }
     for (var t = 0; t < state.table.length; t++) {
       var pair = state.table[t];
@@ -260,7 +261,6 @@ function renderGameUI(state) {
     defendByCard[dk].push(dd.attackIndex);
   }
 
-  var canThrow = role === 'attack' && state.table.length > 0 && Object.keys(attackKeys).length > 0;
   var allCovered = state.table.length > 0;
   for (var c0 = 0; c0 < state.table.length; c0++) {
     if (!state.table[c0].defend) allCovered = false;
@@ -312,9 +312,11 @@ function renderGameUI(state) {
       btnDone.classList.remove('hidden');
       btnDone.textContent = 'Бито';
     }
-  } else if (role === 'attack' && allCovered) {
-    if (btnPass) { btnPass.classList.remove('hidden'); btnPass.textContent = 'Пас'; }
-    if (btnDone) { btnDone.classList.remove('hidden'); btnDone.textContent = 'Бито'; }
+  } else if (role === 'attack' && state.table.length > 0) {
+    if (allCovered) {
+      if (btnPass) { btnPass.classList.remove('hidden'); btnPass.textContent = 'Пас'; }
+      if (btnDone) { btnDone.classList.remove('hidden'); btnDone.textContent = 'Бито'; }
+    }
   }
 }
 
@@ -324,14 +326,18 @@ function maybeBotTurn() {
   if (game.phase === 'defend' && isBotId(game.defender.id)) actorId = game.defender.id;
   else if ((game.phase === 'attack' || game.phase === 'throw') && isBotId(game.attacker.id))
     actorId = game.attacker.id;
+  else if (game.phase === 'defend' && isBotId(game.attacker.id)) {
+    // бот может подкинуть во время отбоя — редко
+    if (Math.random() < 0.35) actorId = game.attacker.id;
+  }
   if (!actorId) return;
 
   setTimeout(function () {
     if (!game || game.phase === 'finished') return;
-    if ((game.phase === 'throw' || game.phase === 'attack') && isBotId(game.attacker.id)) {
+    if ((game.phase === 'throw') && isBotId(game.attacker.id)) {
       var moves = game.getLegalMoves(game.attacker.id);
       if (game.table.length && game.uncoveredCount() === 0) {
-        if (!moves.attacks || !moves.attacks.length || Math.random() < 0.45) {
+        if (!moves.attacks || !moves.attacks.length || Math.random() < 0.4) {
           game.bito(game.attacker.id); sfxBito(); renderFromGame(); return;
         }
       }
@@ -349,7 +355,7 @@ function maybeBotTurn() {
 function startVsBot() {
   ensureAudio();
   if (typeof window.DurakGame !== 'function') {
-    flash('Движок не загрузился. Обновите страницу.');
+    flash('Движок не загрузился');
     return;
   }
   mode = 'bot';
@@ -382,7 +388,7 @@ function startOnline() {
   if (ws) try { ws.close(); } catch (e) {}
   ws = new WebSocket(WS_BASE + '/ws/' + roomId + '?userId=' + encodeURIComponent(myId) + '&username=' + name);
   ws.onopen = function () {
-    $('table-hint').textContent = 'Подключено. Ожидание...';
+    $('table-hint').textContent = 'Подключено...';
     ws.send(JSON.stringify({ type: 'join', userId: myId, name: (currentUser && currentUser.first_name) || 'Игрок' }));
   };
   ws.onmessage = function (ev) {
@@ -393,7 +399,7 @@ function startOnline() {
         $('table-hint').textContent = 'В комнате: ' + n + '/2';
       }
       if (msg.type === 'state' && msg.state) renderOnlineState(msg.state);
-      if (msg.type === 'game_started') $('table-hint').textContent = 'Игра началась!';
+      if (msg.type === 'game_started') $('table-hint').textContent = 'Игра!';
       if (msg.type === 'error') flash(msg.message);
     } catch (e) {}
   };
@@ -405,12 +411,12 @@ function startOnline() {
 
 function renderOnlineState(state) {
   if (!state) return;
+  renderTrumpPile(state);
   var hint = $('table-hint');
   if (hint) {
     hint.classList.remove('hide');
     hint.textContent = 'Онлайн: ' + (state.phase || '');
   }
-  renderTrumpPile(state);
 }
 
 async function authenticate() {
