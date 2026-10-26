@@ -1,5 +1,5 @@
 /**
- * Классический Дурак — клиентская копия движка (демо / offline)
+ * Классический Дурак — клиентская копия
  */
 
 const SUITS = ['spades', 'hearts', 'diamonds', 'clubs'];
@@ -73,8 +73,15 @@ class DurakGame {
     this.phase = 'attack';
     this.started = true;
     this.table = [];
-    this.maxAttackCards = Math.min(6, this.players[this.defenderIndex].hand.length);
+    this.refreshMaxAttack();
     return this.getPublicState();
+  }
+
+  refreshMaxAttack() {
+    const def = this.players[this.defenderIndex];
+    const handLeft = def ? def.hand.length : 6;
+    // не больше чем у защитника карт + уже на столе непокрытых
+    this.maxAttackCards = Math.min(6, Math.max(handLeft + this.uncoveredCount(), this.table.length || 1));
   }
 
   nextActiveIndex(from) {
@@ -102,11 +109,20 @@ class DurakGame {
     return this.table.filter((p) => !p.defend).length;
   }
 
+  /** Атака или подкид (вт.ч. во время defend) */
   attack(playerId, card) {
-    if (this.phase !== 'attack' && this.phase !== 'throw') return { ok: false, error: 'Not attack phase' };
+    const allowedPhase =
+      this.phase === 'attack' ||
+      this.phase === 'throw' ||
+      (this.phase === 'defend' && this.table.length > 0);
+
+    if (!allowedPhase) return { ok: false, error: 'Not attack phase' };
+
     const player = this.players.find((p) => p.id === playerId);
     if (!player || player.out) return { ok: false, error: 'Invalid player' };
     if (playerId !== this.attacker.id) return { ok: false, error: 'Not your turn to attack' };
+
+    this.refreshMaxAttack();
     if (this.table.length >= this.maxAttackCards) return { ok: false, error: 'Max cards on table' };
 
     const idx = player.hand.findIndex((c) => c.rank === card.rank && c.suit === card.suit);
@@ -153,7 +169,7 @@ class DurakGame {
     this.attackerIndex = this.nextActiveIndex(this.defenderIndex);
     this.defenderIndex = this.nextActiveIndex(this.attackerIndex);
     this.phase = this.isFinished() ? 'finished' : 'attack';
-    this.maxAttackCards = Math.min(6, this.players[this.defenderIndex]?.hand.length || 6);
+    this.refreshMaxAttack();
     return { ok: true, state: this.getPublicState() };
   }
 
@@ -168,13 +184,13 @@ class DurakGame {
     this.attackerIndex = this.defenderIndex;
     this.defenderIndex = this.nextActiveIndex(this.attackerIndex);
     this.phase = this.isFinished() ? 'finished' : 'attack';
-    this.maxAttackCards = Math.min(6, this.players[this.defenderIndex]?.hand.length || 6);
+    this.refreshMaxAttack();
     return { ok: true, state: this.getPublicState() };
   }
 
   pass(playerId) {
     if (playerId !== this.attacker.id) return { ok: false, error: 'Not attacker' };
-    if (this.phase === 'throw' && this.uncoveredCount() === 0) return this.bito(playerId);
+    if (this.uncoveredCount() === 0 && this.table.length > 0) return this.bito(playerId);
     return { ok: false, error: 'Cannot pass' };
   }
 
@@ -209,13 +225,13 @@ class DurakGame {
     const active = this.players.filter((p) => !p.out);
     if (active.length <= 1) {
       this.phase = 'finished';
-      this.foolId = active[0]?.id || null;
+      this.foolId = active[0] ? active[0].id : null;
       return true;
     }
     return false;
   }
 
-  getPublicState(forPlayerId = null) {
+  getPublicState(forPlayerId) {
     return {
       started: this.started,
       phase: this.phase,
@@ -223,14 +239,14 @@ class DurakGame {
       trumpCard: this.trumpCard,
       deckCount: this.deck.length,
       table: this.table.map((p) => ({ attack: p.attack, defend: p.defend })),
-      attackerId: this.attacker?.id,
-      defenderId: this.defender?.id,
+      attackerId: this.attacker ? this.attacker.id : null,
+      defenderId: this.defender ? this.defender.id : null,
       players: this.players.map((p) => ({
         id: p.id,
         name: p.name,
         cardsCount: p.hand.length,
         out: p.out,
-        hand: forPlayerId === p.id ? [...p.hand] : undefined,
+        hand: forPlayerId === p.id ? p.hand.slice() : undefined,
       })),
       winnerIds: this.winnerIds,
       foolId: this.foolId,
@@ -244,13 +260,24 @@ class DurakGame {
     const attacks = [];
     const defends = [];
 
-    if ((this.phase === 'attack' || this.phase === 'throw') && playerId === this.attacker.id && this.table.length < this.maxAttackCards) {
-      if (this.table.length === 0) player.hand.forEach((c) => attacks.push(c));
-      else {
+    const canAttackNow =
+      playerId === this.attacker.id &&
+      this.table.length < this.maxAttackCards &&
+      (this.phase === 'attack' ||
+        this.phase === 'throw' ||
+        (this.phase === 'defend' && this.table.length > 0));
+
+    if (canAttackNow) {
+      if (this.table.length === 0) {
+        player.hand.forEach((c) => attacks.push(c));
+      } else {
         const ranks = this.ranksOnTable();
-        player.hand.forEach((c) => { if (ranks.has(c.rank)) attacks.push(c); });
+        player.hand.forEach((c) => {
+          if (ranks.has(c.rank)) attacks.push(c);
+        });
       }
     }
+
     if (this.phase === 'defend' && playerId === this.defender.id) {
       this.table.forEach((pair, i) => {
         if (pair.defend) return;
@@ -263,13 +290,14 @@ class DurakGame {
   }
 }
 
-// Простой бот
 function botMove(game, botId) {
   const moves = game.getLegalMoves(botId);
-  if (game.phase === 'attack' || game.phase === 'throw') {
-    if (moves.attacks.length) {
-      // атакуем самой слабой
-      const sorted = [...moves.attacks].sort((a, b) => RANK_VALUE[a.rank] - RANK_VALUE[b.rank]);
+  if (game.phase === 'attack' || game.phase === 'throw' ||
+      (game.phase === 'defend' && botId === game.attacker.id)) {
+    if (moves.attacks && moves.attacks.length) {
+      const sorted = moves.attacks.slice().sort(function (a, b) {
+        return RANK_VALUE[a.rank] - RANK_VALUE[b.rank];
+      });
       return game.attack(botId, sorted[0]);
     }
     if (game.phase === 'throw' && game.uncoveredCount() === 0) {
@@ -277,11 +305,11 @@ function botMove(game, botId) {
     }
     return null;
   }
-  if (game.phase === 'defend') {
-    if (moves.defends.length) {
-      const sorted = [...moves.defends].sort(
-        (a, b) => RANK_VALUE[a.card.rank] - RANK_VALUE[b.card.rank]
-      );
+  if (game.phase === 'defend' && botId === game.defender.id) {
+    if (moves.defends && moves.defends.length) {
+      const sorted = moves.defends.slice().sort(function (a, b) {
+        return RANK_VALUE[a.card.rank] - RANK_VALUE[b.card.rank];
+      });
       const m = sorted[0];
       return game.defend(botId, m.attackIndex, m.card);
     }
