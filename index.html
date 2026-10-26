@@ -45,13 +45,14 @@
         <button class="btn primary" id="btn-quick">Быстрая игра</button>
         <button class="btn" id="btn-vs-bot">Игра с ботами</button>
         <button class="btn" id="btn-online">Онлайн (поиск)</button>
-        <button class="btn" id="btn-tournament">Турниры</button>
-        <button class="btn" id="btn-friends">Друзья</button>
+        <button class="btn" id="btn-friends">Друзья / Комната</button>
+        <button class="btn" id="btn-referral">Пригласить (+500)</button>
         <button class="btn" id="btn-leaderboard">Доска почёта</button>
-        <button class="btn" id="btn-shop">Предметы</button>
+        <button class="btn" id="btn-shop">Магазин</button>
+        <button class="btn" id="btn-tournament">Турниры</button>
         <button class="btn" id="btn-settings">Настройки</button>
       </div>
-      <div class="footer"><p class="version">Durack Online v0.2.0</p></div>
+      <div class="footer"><p class="version">Durack Online v0.3.0</p></div>
     </div>
 
     <div id="leaderboard" class="screen hidden">
@@ -60,6 +61,50 @@
         <h2>Доска почёта</h2>
       </div>
       <div id="lb-list" class="list"></div>
+    </div>
+
+    <div id="shop" class="screen hidden">
+      <div class="header">
+        <button class="btn-back" id="btn-back-shop">← Назад</button>
+        <h2>Магазин</h2>
+      </div>
+      <p class="screen-sub">Стикеры за монеты · у вас: <b id="shop-coins">0</b> 🪙</p>
+      <div id="shop-list" class="shop-grid"></div>
+    </div>
+
+    <div id="friends" class="screen hidden">
+      <div class="header">
+        <button class="btn-back" id="btn-back-friends">← Назад</button>
+        <h2>Комната</h2>
+      </div>
+      <p class="screen-sub">Создай комнату или войди по коду</p>
+      <div class="friends-box">
+        <button class="btn primary" id="btn-create-room">Создать комнату</button>
+        <div class="room-code-row hidden" id="room-created-row">
+          <span>Код:</span>
+          <b id="room-code-display">----</b>
+          <button class="btn btn-sm" id="btn-copy-room">Копировать</button>
+          <button class="btn btn-sm primary" id="btn-share-room">Поделиться</button>
+          <button class="btn primary" id="btn-enter-created">Войти в игру</button>
+        </div>
+        <div class="divider">или</div>
+        <input class="input" id="room-code-input" placeholder="Код комнаты" maxlength="8" />
+        <button class="btn" id="btn-join-room">Войти по коду</button>
+      </div>
+    </div>
+
+    <div id="referral" class="screen hidden">
+      <div class="header">
+        <button class="btn-back" id="btn-back-ref">← Назад</button>
+        <h2>Рефералка</h2>
+      </div>
+      <div class="ref-card">
+        <div class="ref-bonus">+500 🪙</div>
+        <p>За каждого друга, который откроет игру по твоей ссылке</p>
+        <div class="ref-link-box" id="ref-link-text">...</div>
+        <button class="btn primary" id="btn-share-ref">Поделиться в Telegram</button>
+        <button class="btn" id="btn-copy-ref">Скопировать ссылку</button>
+      </div>
     </div>
 
     <div id="game" class="screen hidden">
@@ -94,5 +139,6 @@
   <script src="durak.js"></script>
   <script src="app.js"></script>
   <script src="presence.js"></script>
+  <script src="stage2.js"></script>
 </body>
 </html>
