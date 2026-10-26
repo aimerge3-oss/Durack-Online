@@ -8,7 +8,7 @@ workers_dev = true
 [[d1_databases]]
 binding = "DB"
 database_name = "durack-db"
-database_id = "REPLACE_WITH_YOUR_D1_ID"   # после создания: wrangler d1 create durack-db
+database_id = "8ed87a1a-3f9d-4f15-aa6a-d9a77a415baf"   # после создания: wrangler d1 create durack-db
 
 # Durable Objects для комнат (realtime)
 [[durable_objects.bindings]]
