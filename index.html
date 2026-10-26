@@ -44,7 +44,7 @@
         <button class="btn" id="btn-shop">Предметы</button>
         <button class="btn" id="btn-settings">Настройки</button>
       </div>
-      <div class="footer"><p class="version">Durack Online v0.1.1</p></div>
+      <div class="footer"><p class="version">Durack Online v0.1.2</p></div>
     </div>
 
     <div id="leaderboard" class="screen hidden">
@@ -59,7 +59,11 @@
       <div class="game-top">
         <button class="btn-back" id="btn-leave">Выйти</button>
         <div class="timer-wrap"><span id="timer">15</span></div>
-        <div class="deck-info" id="deck-info" title="Колода / козырь">
+        <div class="deck-info" id="deck-info">
+          <div class="trump-label">
+            <span class="trump-label-text">Козырь</span>
+            <span class="trump-suit-big" id="trump-suit-big">♠</span>
+          </div>
           <div class="trump-pile" id="trump-pile">
             <div class="trump-card-face" id="trump-card-face"></div>
             <div class="deck-stack" id="deck-stack"></div>

@@ -147,35 +147,84 @@ body {
 #timer.urgent { color: #ff5252; animation: pulse 0.6s ease infinite; }
 @keyframes pulse { 50% { opacity: 0.6; } }
 
+/* Колода + козырь */
+.deck-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.trump-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 36px;
+}
+
+.trump-label-text {
+  font-size: 10px;
+  opacity: 0.75;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.trump-suit-big {
+  font-size: 28px;
+  line-height: 1;
+  font-weight: 700;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.4);
+}
+
+.trump-suit-big.red { color: #ff5252; }
+.trump-suit-big.black { color: #fff; }
+
 .trump-pile {
   position: relative;
-  width: calc(var(--card-w) + 14px);
+  width: calc(var(--card-w) + 28px);
   height: var(--card-h);
 }
 
+/* Козырная карта — видна слева от колоды */
 .trump-card-face {
   position: absolute;
-  left: 0; top: 0;
-  width: var(--card-w); height: var(--card-h);
+  left: 0;
+  top: 50%;
+  width: var(--card-w);
+  height: var(--card-h);
+  margin-top: calc(var(--card-h) / -2);
   background: var(--card-bg);
   border-radius: 6px;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.35);
-  display: flex; flex-direction: column;
-  align-items: center; justify-content: center;
-  font-weight: 700; z-index: 1;
-  transform: rotate(-90deg);
-  transform-origin: center center;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.45);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  z-index: 1;
+  transform: rotate(-12deg);
+  border: 1px solid rgba(0,0,0,0.08);
 }
 
-.trump-card-face .rank { font-size: 13px; line-height: 1; }
-.trump-card-face .suit { font-size: 16px; }
+.trump-card-face .rank {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.trump-card-face .suit {
+  font-size: 20px;
+  line-height: 1.1;
+}
+
 .trump-card-face.red { color: #c62828; }
 .trump-card-face.black { color: #212121; }
 
 .deck-stack {
   position: absolute;
-  right: 0; top: 0;
-  width: var(--card-w); height: var(--card-h);
+  right: 0;
+  top: 0;
+  width: var(--card-w);
+  height: var(--card-h);
   border-radius: 6px;
   background: linear-gradient(145deg, #1a237e, #3949ab);
   box-shadow:
@@ -196,12 +245,17 @@ body {
 
 .deck-count-badge {
   position: absolute;
-  right: -4px; bottom: -4px;
+  right: -4px;
+  bottom: -4px;
   z-index: 3;
-  background: rgba(0,0,0,0.75);
+  background: rgba(0,0,0,0.8);
   color: #fff;
-  font-size: 11px; font-weight: 700;
-  padding: 2px 6px; border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 8px;
+  min-width: 22px;
+  text-align: center;
 }
 
 .opponents {
@@ -287,16 +341,12 @@ body {
 .card.red { color: #c62828; }
 .card.black { color: #212121; }
 
-/* Доступные для хода — приподняты, без прозрачности */
 .card.playable {
   transform: translateY(-10px);
   box-shadow: 0 6px 12px rgba(0,0,0,0.35);
   z-index: 3;
 }
-
-.card.playable:active {
-  transform: translateY(-14px);
-}
+.card.playable:active { transform: translateY(-14px); }
 
 .hand-area { flex-shrink: 0; padding: 2px 0 0; overflow: visible; }
 .hand {
