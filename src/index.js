@@ -4,6 +4,7 @@
 
 import { handleAuth } from './auth.js';
 import { handleMe, handleLeaderboard, handleOnline, handlePresence } from './api.js';
+import { handleShop, handleBuy } from './shop.js';
 import { GameRoom } from './game-room.js';
 import { handleTelegramWebhook, handleSetWebhook } from './bot.js';
 
@@ -31,39 +32,35 @@ export default {
       const path = url.pathname;
 
       if (path === '/' && request.method === 'GET') {
-        return json({
-          name: 'Durack Online',
-          version: '0.2.0',
-          status: 'ok',
-        });
+        return json({ name: 'Durack Online', version: '0.3.0', status: 'ok' });
       }
 
       if (path === '/telegram' && request.method === 'POST') {
         return handleTelegramWebhook(request, env);
       }
-
       if (path === '/set-webhook' && request.method === 'GET') {
         return handleSetWebhook(request, env);
       }
-
       if (path === '/auth' && request.method === 'POST') {
         return handleAuth(request, env);
       }
-
       if (path === '/me' && request.method === 'GET') {
         return handleMe(request, env);
       }
-
       if (path === '/leaderboard' && request.method === 'GET') {
         return handleLeaderboard(request, env);
       }
-
       if (path === '/online' && request.method === 'GET') {
         return handleOnline(request, env);
       }
-
       if (path === '/presence' && request.method === 'POST') {
         return handlePresence(request, env);
+      }
+      if (path === '/shop' && request.method === 'GET') {
+        return handleShop(request, env);
+      }
+      if (path === '/shop/buy' && request.method === 'POST') {
+        return handleBuy(request, env);
       }
 
       if (path.startsWith('/ws/') && request.method === 'GET') {

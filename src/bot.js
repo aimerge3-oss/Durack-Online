@@ -1,5 +1,5 @@
 /**
- * Telegram Bot — обработка /start и webhook
+ * Telegram Bot — /start + реферальный start param
  */
 
 const MINI_APP_URL = 'https://aimerge3-oss.github.io/Durack-Online/index.html';
@@ -21,14 +21,9 @@ async function sendMessage(token, chatId, text, replyMarkup = null) {
   return res.json();
 }
 
-/**
- * POST /telegram — webhook от Telegram
- */
 export async function handleTelegramWebhook(request, env) {
   const token = env.TELEGRAM_BOT_TOKEN;
-  if (!token) {
-    return new Response('No bot token', { status: 500 });
-  }
+  if (!token) return new Response('No bot token', { status: 500 });
 
   let update;
   try {
@@ -38,24 +33,26 @@ export async function handleTelegramWebhook(request, env) {
   }
 
   const message = update.message || update.edited_message;
-  if (!message || !message.chat) {
-    return new Response('OK');
-  }
+  if (!message || !message.chat) return new Response('OK');
 
   const chatId = message.chat.id;
   const text = (message.text || '').trim();
   const firstName = message.from?.first_name || 'игрок';
 
   if (text === '/start' || text.startsWith('/start ')) {
+    const parts = text.split(/\s+/);
+    const ref = parts[1] ? `?tgWebAppStartParam=${encodeURIComponent(parts[1])}` : '';
+
     const welcome =
       `Привет, <b>${escapeHtml(firstName)}</b>! 🃏\n\n` +
       `Добро пожаловать в <b>Дурак Онлайн</b>.\n` +
       `Классический дурак прямо в Telegram.\n\n` +
-      `Нажми кнопку ниже, чтобы начать игру.`;
+      `Пригласи друза — получи <b>+500 монет</b>!\n\n` +
+      `Нажми кнопку ниже, чтобы начать.`;
 
     await sendMessage(token, chatId, welcome, {
       inline_keyboard: [
-        [{ text: '🂮 Играть', web_app: { url: MINI_APP_URL } }],
+        [{ text: '🂮 Играть', web_app: { url: MINI_APP_URL + ref } }],
         [{ text: '🏆 Доска почёта', web_app: { url: MINI_APP_URL } }],
       ],
     });
@@ -71,9 +68,6 @@ function escapeHtml(s) {
     .replace(/>/g, '&gt;');
 }
 
-/**
- * GET /set-webhook
- */
 export async function handleSetWebhook(request, env) {
   const token = env.TELEGRAM_BOT_TOKEN;
   if (!token) {
