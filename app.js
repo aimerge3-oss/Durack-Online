@@ -4,7 +4,7 @@
 
 const API_BASE = 'https://durack-online.pozzistory666.workers.dev';
 
-const SUITS = {
+const CARD_SUITS = {
   spades:   { symbol: '\u2660', color: 'black' },
   hearts:   { symbol: '\u2665', color: 'red' },
   diamonds: { symbol: '\u2666', color: 'red' },
@@ -94,7 +94,7 @@ function createCardEl(card, opts) {
     el.classList.add('back');
     return el;
   }
-  var suitInfo = SUITS[card.suit] || SUITS.spades;
+  var suitInfo = CARD_SUITS[card.suit] || CARD_SUITS.spades;
   el.classList.add(suitInfo.color);
   if (opts.playable) el.classList.add('playable');
   if (opts.extraClass) el.classList.add(opts.extraClass);
@@ -154,7 +154,7 @@ function renderGameUI(state) {
     if (state.players[i].id === myId) me = state.players[i];
   }
 
-  var trumpInfo = SUITS[state.trump] || SUITS.spades;
+  var trumpInfo = CARD_SUITS[state.trump] || CARD_SUITS.spades;
   var trumpEl = $('trump-suit');
   if (trumpEl) {
     trumpEl.textContent = trumpInfo.symbol;
@@ -281,9 +281,9 @@ function renderGameUI(state) {
 
   var btnTake = $('btn-take');
   var btnDone = $('btn-done');
-  var btnPass = $('btn-pass');
   if (btnTake) btnTake.classList.add('hidden');
   if (btnDone) btnDone.classList.add('hidden');
+  var btnPass = $('btn-pass');
   if (btnPass) btnPass.classList.add('hidden');
 
   if (role === 'defend') {
@@ -371,9 +371,7 @@ async function authenticate() {
     }
 
     var controller = new AbortController();
-    var timeout = setTimeout(function () {
-      controller.abort();
-    }, 8000);
+    var timeout = setTimeout(function () { controller.abort(); }, 8000);
 
     var res = await fetch(API_BASE + '/auth', {
       method: 'POST',
@@ -399,7 +397,6 @@ async function authenticate() {
     showScreen('menu');
   } catch (err) {
     console.error(err);
-    // Не виснем на загрузке — пускаем в меню демо
     currentUser = {
       telegram_id: 0,
       first_name: 'Игрок',
@@ -456,9 +453,9 @@ function bind() {
   if (btnLb) btnLb.addEventListener('click', loadLeaderboard);
 
   var btnBack = $('btn-back-lb');
-  if (btnBack) btnBack.addEventListener('click', function () {
-    showScreen('menu');
-  });
+  if (btnBack) {
+    btnBack.addEventListener('click', function () { showScreen('menu'); });
+  }
 
   var btnLeave = $('btn-leave');
   if (btnLeave) {
@@ -492,9 +489,7 @@ function bind() {
   ['btn-tournament', 'btn-friends', 'btn-shop', 'btn-settings'].forEach(function (id) {
     var el = $(id);
     if (el) {
-      el.addEventListener('click', function () {
-        flash('Скоро');
-      });
+      el.addEventListener('click', function () { flash('Скоро'); });
     }
   });
 }
