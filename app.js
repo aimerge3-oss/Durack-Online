@@ -33,7 +33,7 @@ let timerInterval = null;
 let timerSeconds = 15;
 let game = null;
 let myId = 'player';
-const botId = 'bot';
+let playerCount = 2;
 
 function $(id) {
   return document.getElementById(id);
@@ -55,6 +55,10 @@ function showScreen(name) {
 
 function cardKey(c) {
   return c.rank + '_' + c.suit;
+}
+
+function isBotId(id) {
+  return String(id).indexOf('bot') === 0;
 }
 
 function flash(msg) {
@@ -249,7 +253,11 @@ function renderGameUI(state) {
   var handRoot = $('player-hand');
   if (handRoot) {
     handRoot.innerHTML = '';
+    handRoot.className = 'hand';
     var hand = (me && me.hand) || [];
+    if (hand.length >= 10) handRoot.classList.add('crowded');
+    else if (hand.length >= 7) handRoot.classList.add('many');
+
     for (var h = 0; h < hand.length; h++) {
       (function (card) {
         var key = cardKey(card);
@@ -310,30 +318,34 @@ function renderGameUI(state) {
 
 function maybeBotTurn() {
   if (!game || game.phase === 'finished') return;
-  var botTurn =
-    (game.attacker.id === botId && (game.phase === 'attack' || game.phase === 'throw')) ||
-    (game.defender.id === botId && game.phase === 'defend');
-  if (!botTurn) return;
+
+  var actorId = null;
+  if (game.phase === 'defend' && isBotId(game.defender.id)) {
+    actorId = game.defender.id;
+  } else if ((game.phase === 'attack' || game.phase === 'throw') && isBotId(game.attacker.id)) {
+    actorId = game.attacker.id;
+  }
+  if (!actorId) return;
 
   setTimeout(function () {
     if (!game || game.phase === 'finished') return;
-    if (game.phase === 'throw' && game.attacker.id === botId) {
-      var moves = game.getLegalMoves(botId);
+    if (game.phase === 'throw' && isBotId(game.attacker.id)) {
+      var moves = game.getLegalMoves(game.attacker.id);
       if ((!moves.attacks || !moves.attacks.length) && game.uncoveredCount() === 0) {
-        game.bito(botId);
+        game.bito(game.attacker.id);
         renderFromGame();
         return;
       }
     }
     if (typeof window.durakBotMove === 'function') {
-      var res = window.durakBotMove(game, botId);
+      var res = window.durakBotMove(game, actorId);
       if (res && res.ok) renderFromGame();
-      else if (game.phase === 'throw' && game.attacker.id === botId && game.uncoveredCount() === 0) {
-        game.bito(botId);
+      else if (game.phase === 'throw' && isBotId(game.attacker.id) && game.uncoveredCount() === 0) {
+        game.bito(game.attacker.id);
         renderFromGame();
       }
     }
-  }, 600);
+  }, 550);
 }
 
 function startVsBot() {
@@ -343,10 +355,17 @@ function startVsBot() {
   }
   var name = (currentUser && currentUser.first_name) || 'Игрок';
   myId = String((currentUser && currentUser.telegram_id) || 'player');
-  game = new window.DurakGame([
-    { id: myId, name: name },
-    { id: botId, name: 'Бот' },
-  ]);
+
+  var players = [{ id: myId, name: name }];
+  var bots = playerCount - 1;
+  for (var i = 0; i < bots; i++) {
+    players.push({
+      id: 'bot' + (i + 1),
+      name: bots === 1 ? 'Бот' : 'Бот ' + (i + 1),
+    });
+  }
+
+  game = new window.DurakGame(players);
   game.start();
   showScreen('game');
   renderFromGame();
@@ -444,6 +463,19 @@ async function loadLeaderboard() {
 }
 
 function bind() {
+  var countRoot = $('player-count-btns');
+  if (countRoot) {
+    countRoot.addEventListener('click', function (e) {
+      var btn = e.target.closest('button[data-count]');
+      if (!btn) return;
+      playerCount = parseInt(btn.getAttribute('data-count'), 10) || 2;
+      var buttons = countRoot.querySelectorAll('button');
+      for (var i = 0; i < buttons.length; i++) {
+        buttons[i].classList.toggle('active', buttons[i] === btn);
+      }
+    });
+  }
+
   var btnQuick = $('btn-quick');
   var btnBot = $('btn-vs-bot');
   if (btnQuick) btnQuick.addEventListener('click', startVsBot);
