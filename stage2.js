@@ -1,57 +1,63 @@
 /**
- * Stage 2: shop, referral, friends rooms, matchmaking helpers
+ * Stage 2: shop, referral, friends rooms, matchmaking
  */
 (function () {
   var API = 'https://durack-online.pozzistory666.workers.dev';
   var BOT = 'DurackOnlineBOT';
   var privateRoomCode = null;
 
-  function $(id) {
-    return document.getElementById(id);
+  function $(id) { return document.getElementById(id); }
+
+  function getToken() {
+    try {
+      if (typeof authToken !== 'undefined' && authToken) return String(authToken);
+    } catch (e) {}
+    try {
+      if (window.__authToken) return String(window.__authToken);
+    } catch (e) {}
+    try {
+      var u = window.Telegram && Telegram.WebApp && Telegram.WebApp.initDataUnsafe && Telegram.WebApp.initDataUnsafe.user;
+      if (u && u.id) return String(u.id);
+    } catch (e) {}
+    return null;
   }
 
   function authHeaders() {
     var h = { 'Content-Type': 'application/json' };
-    try {
-      if (typeof authToken !== 'undefined' && authToken) {
-        h['Authorization'] = 'Bearer ' + authToken;
-      }
-    } catch (e) {}
+    var t = getToken();
+    if (t) h['Authorization'] = 'Bearer ' + t;
     return h;
   }
 
   function show(name) {
-    if (typeof showScreen === 'function') showScreen(name);
-    else {
-      ['menu', 'leaderboard', 'shop', 'friends', 'referral', 'game', 'loading'].forEach(function (n) {
-        var el = $(n);
-        if (el) el.classList.toggle('hidden', n !== name);
-      });
-    }
+    ['loading', 'menu', 'leaderboard', 'shop', 'friends', 'referral', 'game'].forEach(function (n) {
+      var el = $(n);
+      if (el) el.classList.toggle('hidden', n !== name);
+    });
   }
 
   function toast(msg) {
-    if (typeof flash === 'function') flash(msg);
-    else if (window.Telegram && Telegram.WebApp && Telegram.WebApp.showAlert) {
-      Telegram.WebApp.showAlert(String(msg));
-    } else alert(msg);
+    if (window.Telegram && Telegram.WebApp && Telegram.WebApp.showAlert) Telegram.WebApp.showAlert(String(msg));
+    else alert(msg);
   }
 
   function myTelegramId() {
-    try {
-      if (typeof currentUser !== 'undefined' && currentUser && currentUser.telegram_id) {
-        return String(currentUser.telegram_id);
-      }
-    } catch (e) {}
+    var t = getToken();
+    if (t && t !== '0') return t;
     return '0';
   }
 
   function refLink() {
-    var id = myTelegramId();
-    return 'https://t.me/' + BOT + '?start=' + id;
+    return 'https://t.me/' + BOT + '?start=' + myTelegramId();
   }
 
-  /* ===== Shop ===== */
+  function setCoins(n) {
+    var a = $('user-coins');
+    if (a) a.textContent = n;
+    var b = $('shop-coins');
+    if (b) b.textContent = n;
+  }
+
   function openShop() {
     show('shop');
     var list = $('shop-list');
@@ -60,14 +66,7 @@
       .then(function (r) { return r.json(); })
       .then(function (data) {
         if (!data.ok) throw new Error(data.error || 'err');
-        var coinsEl = $('shop-coins');
-        if (coinsEl) coinsEl.textContent = data.coins || 0;
-        try {
-          if (typeof currentUser !== 'undefined' && currentUser) {
-            currentUser.coins = data.coins;
-            if (typeof renderUser === 'function') renderUser();
-          }
-        } catch (e) {}
+        setCoins(data.coins || 0);
         list.innerHTML = '';
         (data.stickers || []).forEach(function (s) {
           var card = document.createElement('div');
@@ -97,50 +96,34 @@
       .then(function (res) {
         if (!res.ok || !res.d.ok) throw new Error((res.d && res.d.error) || 'err');
         toast('Куплено: ' + (res.d.sticker.emoji || '') + ' ' + res.d.sticker.name);
-        try {
-          if (typeof currentUser !== 'undefined' && currentUser) {
-            currentUser.coins = res.d.coins;
-            if (typeof renderUser === 'function') renderUser();
-          }
-        } catch (e) {}
+        setCoins(res.d.coins);
         openShop();
       })
-      .catch(function (e) {
-        toast(e.message);
-      });
+      .catch(function (e) { toast(e.message); });
   }
 
-  /* ===== Referral ===== */
   function openReferral() {
     show('referral');
     var el = $('ref-link-text');
     if (el) el.textContent = refLink();
   }
 
+  function copyText(t) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(t).then(function () { toast('Скопировано'); });
+    } else toast(t);
+  }
+
   function shareRef() {
     var link = refLink();
-    var text = 'Давай сыграем в Дурак Онлайн! ' + link;
     if (window.Telegram && Telegram.WebApp && Telegram.WebApp.openTelegramLink) {
       Telegram.WebApp.openTelegramLink(
         'https://t.me/share/url?url=' + encodeURIComponent(link) +
         '&text=' + encodeURIComponent('Давай сыграем в Дурак Онлайн!')
       );
-    } else if (navigator.share) {
-      navigator.share({ title: 'Дурак Онлайн', text: text, url: link }).catch(function () {});
-    } else {
-      copyText(link);
-    }
+    } else copyText(link);
   }
 
-  function copyText(t) {
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(t).then(function () { toast('Скопировано'); });
-    } else {
-      toast(t);
-    }
-  }
-
-  /* ===== Friends room ===== */
   function randomCode() {
     var chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     var s = '';
@@ -167,20 +150,8 @@
 
   function enterPrivateRoom(code) {
     code = String(code || '').trim().toUpperCase();
-    if (!code || code.length < 3) {
-      toast('Введи код комнаты');
-      return;
-    }
-    // переиспользуем онлайн-подключение с фиксированным room id
-    if (typeof startOnlineRoom === 'function') {
-      startOnlineRoom('priv_' + code);
-    } else if (typeof startOnline === 'function') {
-      // fallback: monkey-patch room id via global
-      window.__forceRoomId = 'priv_' + code;
-      startOnline();
-    } else {
-      toast('Онлайн не готов');
-    }
+    if (!code || code.length < 3) { toast('Введи код'); return; }
+    window.startOnlineRoom('priv_' + code);
   }
 
   function shareRoom() {
@@ -191,29 +162,21 @@
         'https://t.me/share/url?url=' + encodeURIComponent('https://t.me/' + BOT) +
         '&text=' + encodeURIComponent(text)
       );
-    } else {
-      copyText(text);
-    }
+    } else copyText(text);
   }
 
-  /* ===== Matchmaking polish: expose startOnlineRoom ===== */
   window.startOnlineRoom = function (roomId) {
-    if (typeof ensureAudio === 'function') ensureAudio();
+    var tg = window.Telegram && Telegram.WebApp;
+    var uid = myTelegramId();
+    if (uid === '0') uid = 'guest_' + Math.random().toString(36).slice(2, 8);
+    var uname = 'Игрок';
     try {
-      mode = 'online';
-      game = null;
-      onlineState = null;
-      myId = String(
-        (typeof currentUser !== 'undefined' && currentUser && currentUser.telegram_id) ||
-          'guest_' + Math.random().toString(36).slice(2, 8)
-      );
+      if (tg && tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.first_name) {
+        uname = tg.initDataUnsafe.user.first_name;
+      }
     } catch (e) {}
 
-    var name = encodeURIComponent(
-      (typeof currentUser !== 'undefined' && currentUser && currentUser.first_name) || 'Игрок'
-    );
-    roomId = roomId || window.__forceRoomId || ('quick_' + Math.floor(Date.now() / 30000));
-    window.__forceRoomId = null;
+    roomId = roomId || ('mm_2_' + Math.floor(Date.now() / 15000));
 
     show('game');
     var hint = $('table-hint');
@@ -227,120 +190,88 @@
     if ($('opponents')) $('opponents').innerHTML = '';
     if ($('table-cards')) $('table-cards').innerHTML = '';
 
-    if (typeof ws !== 'undefined' && ws) {
-      try { ws.close(); } catch (e) {}
-    }
+    try {
+      if (typeof mode !== 'undefined') mode = 'online';
+      if (typeof myId !== 'undefined') myId = uid;
+      if (typeof onlineState !== 'undefined') onlineState = null;
+    } catch (e) {}
 
-    var WS = 'wss://durack-online.pozzistory666.workers.dev';
+    var oldWs = window.ws || (typeof ws !== 'undefined' ? ws : null);
+    if (oldWs) try { oldWs.close(); } catch (e) {}
+
     var socket = new WebSocket(
-      WS + '/ws/' + roomId +
-        '?userId=' + encodeURIComponent(myId) +
-        '&username=' + name
+      'wss://durack-online.pozzistory666.workers.dev/ws/' + roomId +
+      '?userId=' + encodeURIComponent(uid) +
+      '&username=' + encodeURIComponent(uname)
     );
-    try { ws = socket; } catch (e) { window.ws = socket; }
+    window.ws = socket;
+    try { ws = socket; } catch (e) {}
 
     socket.onopen = function () {
       if (hint) hint.textContent = 'Подключено...';
-      socket.send(
-        JSON.stringify({
-          type: 'join',
-          userId: myId,
-          name: (typeof currentUser !== 'undefined' && currentUser && currentUser.first_name) || 'Игрок',
-        })
-      );
+      socket.send(JSON.stringify({ type: 'join', userId: uid, name: uname }));
     };
     socket.onmessage = function (ev) {
       try {
         var msg = JSON.parse(ev.data);
         if (msg.type === 'welcome' || msg.type === 'player_joined' || msg.type === 'player_left') {
           var n = (msg.players && msg.players.length) || 1;
-          if (hint && !onlineState) {
-            hint.classList.remove('hide');
-            hint.textContent = 'В комнате: ' + n + '/2';
-          }
+          if (hint) { hint.classList.remove('hide'); hint.textContent = 'В комнате: ' + n + '/2'; }
         }
         if (msg.type === 'state' && msg.state) {
-          onlineState = msg.state;
+          try { onlineState = msg.state; } catch (e) {}
           if (typeof renderOnlineState === 'function') renderOnlineState(msg.state);
         }
-        if (msg.type === 'game_started' && typeof sfxPlay === 'function') sfxPlay();
-        if (msg.type === 'game_over') {
-          toast(msg.foolId === myId ? 'Вы — дурак' : 'Игра окончена');
-        }
         if (msg.type === 'error') toast(msg.message);
+        if (msg.type === 'game_over') toast(msg.foolId === uid ? 'Вы — дурак' : 'Игра окончена');
       } catch (e) {}
     };
     socket.onclose = function () {
-      if (hint) {
-        hint.classList.remove('hide');
-        hint.textContent = 'Соединение закрыто';
-      }
+      if (hint) { hint.classList.remove('hide'); hint.textContent = 'Соединение закрыто'; }
     };
   };
 
-  // Override startOnline to use polished room
-  var _origStartOnline = window.startOnline;
-  window.startOnline = function () {
-    if (window.__forceRoomId) {
-      window.startOnlineRoom(window.__forceRoomId);
-      return;
+  // polish matchmaking for btn-online
+  setTimeout(function () {
+    var btn = $('btn-online');
+    if (btn) {
+      btn.addEventListener('click', function (e) {
+        e.stopImmediatePropagation();
+        var pc = 2;
+        try { if (typeof playerCount !== 'undefined') pc = playerCount; } catch (err) {}
+        var slot = Math.floor(Date.now() / 15000);
+        window.startOnlineRoom('mm_' + pc + '_' + slot);
+      }, true);
     }
-    // лучший matchmaking: слот 15 сек + playerCount
-    var slot = Math.floor(Date.now() / 15000);
-    var pc = typeof playerCount !== 'undefined' ? playerCount : 2;
-    window.startOnlineRoom('mm_' + pc + '_' + slot);
-  };
+  }, 500);
 
   function bind() {
-    var shopBtn = $('btn-shop');
-    if (shopBtn) shopBtn.onclick = openShop;
-    var backShop = $('btn-back-shop');
-    if (backShop) backShop.onclick = function () { show('menu'); };
-
-    var shopList = $('shop-list');
-    if (shopList) {
-      shopList.addEventListener('click', function (e) {
+    if ($('btn-shop')) $('btn-shop').onclick = function (e) { e.stopPropagation(); openShop(); };
+    if ($('btn-back-shop')) $('btn-back-shop').onclick = function () { show('menu'); };
+    if ($('shop-list')) {
+      $('shop-list').addEventListener('click', function (e) {
         var btn = e.target.closest('.shop-buy');
-        if (!btn) return;
-        buySticker(parseInt(btn.getAttribute('data-id'), 10));
+        if (btn) buySticker(parseInt(btn.getAttribute('data-id'), 10));
       });
     }
-
-    var refBtn = $('btn-referral');
-    if (refBtn) refBtn.onclick = openReferral;
-    var backRef = $('btn-back-ref');
-    if (backRef) backRef.onclick = function () { show('menu'); };
-    var shareRefBtn = $('btn-share-ref');
-    if (shareRefBtn) shareRefBtn.onclick = shareRef;
-    var copyRefBtn = $('btn-copy-ref');
-    if (copyRefBtn) copyRefBtn.onclick = function () { copyText(refLink()); };
-
-    var friendsBtn = $('btn-friends');
-    if (friendsBtn) friendsBtn.onclick = openFriends;
-    var backFriends = $('btn-back-friends');
-    if (backFriends) backFriends.onclick = function () { show('menu'); };
-    var createBtn = $('btn-create-room');
-    if (createBtn) createBtn.onclick = createRoom;
-    var copyRoom = $('btn-copy-room');
-    if (copyRoom) copyRoom.onclick = function () { if (privateRoomCode) copyText(privateRoomCode); };
-    var shareRoomBtn = $('btn-share-room');
-    if (shareRoomBtn) shareRoomBtn.onclick = shareRoom;
-    var enterCreated = $('btn-enter-created');
-    if (enterCreated) enterCreated.onclick = function () { enterPrivateRoom(privateRoomCode); };
-    var joinBtn = $('btn-join-room');
-    if (joinBtn) {
-      joinBtn.onclick = function () {
+    if ($('btn-referral')) $('btn-referral').onclick = function (e) { e.stopPropagation(); openReferral(); };
+    if ($('btn-back-ref')) $('btn-back-ref').onclick = function () { show('menu'); };
+    if ($('btn-share-ref')) $('btn-share-ref').onclick = shareRef;
+    if ($('btn-copy-ref')) $('btn-copy-ref').onclick = function () { copyText(refLink()); };
+    if ($('btn-friends')) $('btn-friends').onclick = function (e) { e.stopPropagation(); openFriends(); };
+    if ($('btn-back-friends')) $('btn-back-friends').onclick = function () { show('menu'); };
+    if ($('btn-create-room')) $('btn-create-room').onclick = createRoom;
+    if ($('btn-copy-room')) $('btn-copy-room').onclick = function () { if (privateRoomCode) copyText(privateRoomCode); };
+    if ($('btn-share-room')) $('btn-share-room').onclick = shareRoom;
+    if ($('btn-enter-created')) $('btn-enter-created').onclick = function () { enterPrivateRoom(privateRoomCode); };
+    if ($('btn-join-room')) {
+      $('btn-join-room').onclick = function () {
         var input = $('room-code-input');
         enterPrivateRoom(input && input.value);
       };
     }
-
-    // убираем старые «Скоро» на shop/friends если повесились в app.js
   }
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', bind);
-  } else {
-    bind();
-  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bind);
+  else bind();
 })();
