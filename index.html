@@ -9,11 +9,13 @@
 </head>
 <body>
   <div id="app">
+    <!-- Loading -->
     <div id="loading" class="screen">
       <div class="loader"></div>
       <p>Загрузка...</p>
     </div>
 
+    <!-- Menu -->
     <div id="menu" class="screen hidden">
       <div class="top-bar">
         <div class="user-info">
@@ -40,6 +42,7 @@
       </div>
     </div>
 
+    <!-- Leaderboard -->
     <div id="leaderboard" class="screen hidden">
       <div class="header">
         <button class="btn-back" id="btn-back-lb">← Назад</button>
@@ -48,19 +51,42 @@
       <div id="lb-list" class="list"></div>
     </div>
 
+    <!-- GAME TABLE -->
     <div id="game" class="screen hidden">
-      <div class="header">
+      <div class="game-top">
         <button class="btn-back" id="btn-leave">Выйти</button>
-        <span id="timer">15</span>
+        <div class="timer-wrap">
+          <span id="timer">15</span>
+        </div>
+        <div class="deck-info">
+          <span id="deck-count">24</span>
+          <span class="trump-suit" id="trump-suit">♠</span>
+        </div>
       </div>
-      <div class="table">
-        <p class="placeholder">Игровой стол (будет в Этапе 1)</p>
-        <p id="room-info"></p>
+
+      <!-- Opponents -->
+      <div class="opponents" id="opponents">
+        <!-- filled by JS -->
       </div>
-      <div class="hand" id="player-hand"></div>
-      <div class="actions">
-        <button class="btn" id="btn-take">Беру</button>
-        <button class="btn primary" id="btn-done">Бито</button>
+
+      <!-- Table center -->
+      <div class="table-area">
+        <div class="table-cards" id="table-cards">
+          <!-- attack/defend pairs -->
+        </div>
+        <p class="table-hint" id="table-hint">Ожидание хода...</p>
+      </div>
+
+      <!-- Player hand -->
+      <div class="hand-area">
+        <div class="hand" id="player-hand"></div>
+      </div>
+
+      <!-- Actions -->
+      <div class="actions" id="actions">
+        <button class="btn action-btn" id="btn-take">Беру</button>
+        <button class="btn action-btn primary" id="btn-done">Бито</button>
+        <button class="btn action-btn hidden" id="btn-pass">Пас</button>
       </div>
     </div>
   </div>
