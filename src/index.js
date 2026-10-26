@@ -1,10 +1,9 @@
 /**
  * Durack Online — Cloudflare Worker
- * Без внешних зависимостей (чистый JS)
  */
 
 import { handleAuth } from './auth.js';
-import { handleMe, handleLeaderboard } from './api.js';
+import { handleMe, handleLeaderboard, handleOnline, handlePresence } from './api.js';
 import { GameRoom } from './game-room.js';
 import { handleTelegramWebhook, handleSetWebhook } from './bot.js';
 
@@ -31,42 +30,42 @@ export default {
       const url = new URL(request.url);
       const path = url.pathname;
 
-      // Health
       if (path === '/' && request.method === 'GET') {
         return json({
           name: 'Durack Online',
-          version: '0.1.0',
+          version: '0.2.0',
           status: 'ok',
-          message: 'Telegram Mini App backend ready',
         });
       }
 
-      // Telegram webhook
       if (path === '/telegram' && request.method === 'POST') {
         return handleTelegramWebhook(request, env);
       }
 
-      // Один раз: установить webhook
       if (path === '/set-webhook' && request.method === 'GET') {
         return handleSetWebhook(request, env);
       }
 
-      // Auth
       if (path === '/auth' && request.method === 'POST') {
         return handleAuth(request, env);
       }
 
-      // Me
       if (path === '/me' && request.method === 'GET') {
         return handleMe(request, env);
       }
 
-      // Leaderboard
       if (path === '/leaderboard' && request.method === 'GET') {
         return handleLeaderboard(request, env);
       }
 
-      // WebSocket к комнате
+      if (path === '/online' && request.method === 'GET') {
+        return handleOnline(request, env);
+      }
+
+      if (path === '/presence' && request.method === 'POST') {
+        return handlePresence(request, env);
+      }
+
       if (path.startsWith('/ws/') && request.method === 'GET') {
         const roomId = path.slice(4);
         if (!roomId) return json({ error: 'roomId required' }, 400);

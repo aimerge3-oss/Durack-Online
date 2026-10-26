@@ -11,6 +11,7 @@ export class GameRoom {
     this.sessions = new Map();
     this.game = null;
     this.turnDeadline = 0;
+    this.winsRecorded = false;
   }
 
   async fetch(request) {
@@ -26,10 +27,11 @@ export class GameRoom {
         'anon_' + Math.random().toString(36).slice(2, 8);
       const username = url.searchParams.get('username') || 'Игрок';
 
-      // не дублировать того же userId
       for (const [ws, info] of this.sessions) {
         if (info.userId === userId) {
-          try { ws.close(1000, 'replaced'); } catch (_) {}
+          try {
+            ws.close(1000, 'replaced');
+          } catch (_) {}
           this.sessions.delete(ws);
         }
       }
@@ -139,9 +141,34 @@ export class GameRoom {
       players.map((p) => ({ id: p.userId, name: p.name }))
     );
     this.game.start();
+    this.winsRecorded = false;
     this.turnDeadline = Date.now() + 15000;
     this.broadcast({ type: 'game_started' });
     this.broadcastState();
+  }
+
+  async recordWins() {
+    if (this.winsRecorded || !this.game || !this.env.DB) return;
+    this.winsRecorded = true;
+    const foolId = this.game.foolId;
+    const winners = (this.game.winnerIds || []).filter((id) => id !== foolId);
+    // все кроме дурака — +1 победа
+    const players = this.listPlayers();
+    for (const p of players) {
+      if (String(p.userId) === String(foolId)) continue;
+      if (String(p.userId).startsWith('anon_') || String(p.userId).startsWith('guest_')) continue;
+      const tid = parseInt(p.userId, 10);
+      if (!tid) continue;
+      try {
+        await this.env.DB.prepare(
+          'UPDATE users SET wins_random = wins_random + 1, coins = coins + 25, updated_at = CURRENT_TIMESTAMP WHERE telegram_id = ?'
+        )
+          .bind(tid)
+          .run();
+      } catch (e) {
+        console.error('win record', e);
+      }
+    }
   }
 
   async onMessage(ws, raw) {
@@ -218,6 +245,7 @@ export class GameRoom {
     this.broadcastState();
 
     if (this.game.phase === 'finished') {
+      await this.recordWins();
       this.broadcast({
         type: 'game_over',
         foolId: this.game.foolId,
