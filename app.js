@@ -34,6 +34,7 @@ let timerInterval = null;
 let timerSeconds = 15;
 let game = null;
 let onlineState = null;
+let selectedDefendIndex = null;
 let myId = 'player';
 let playerCount = 2;
 let mode = 'bot';
@@ -224,6 +225,10 @@ function renderFromGame() {
 
 function renderTableState(state, opts) {
   opts = opts || {};
+  if (selectedDefendIndex != null) {
+    var okSel = state.table && state.table[selectedDefendIndex] && !state.table[selectedDefendIndex].defend;
+    if (!okSel) selectedDefendIndex = null;
+  }
   var legal = opts.legal || state.legal || { attacks: [], defends: [] };
 
   var me = null;
@@ -277,7 +282,12 @@ function renderTableState(state, opts) {
     }
   } else {
     if (hint) {
-      if (role === 'attack') {
+      if (role === 'defend') {
+        hint.classList.remove('hide');
+        hint.textContent = selectedDefendIndex != null
+          ? 'Теперь выбери карту из руки'
+          : 'Нажми карту на столе, которую отбиваешь';
+      } else if (role === 'attack') {
         hint.classList.remove('hide');
         hint.textContent = 'Подкиньте или Пас';
       } else {
@@ -285,12 +295,22 @@ function renderTableState(state, opts) {
       }
     }
     for (var t = 0; t < state.table.length; t++) {
-      var pair = state.table[t];
-      var wrap = document.createElement('div');
-      wrap.className = 'table-pair' + (!pair.defend ? ' uncovered' : '');
-      wrap.appendChild(createCardEl(pair.attack, { extraClass: 'attack' }));
-      if (pair.defend) wrap.appendChild(createCardEl(pair.defend, { extraClass: 'defend' }));
-      if (tableRoot) tableRoot.appendChild(wrap);
+      (function (tIdx, pair) {
+        var wrap = document.createElement('div');
+        var sel = selectedDefendIndex === tIdx;
+        wrap.className = 'table-pair' + (!pair.defend ? ' uncovered' : '') + (sel ? ' selected-target' : '');
+        wrap.appendChild(createCardEl(pair.attack, { extraClass: 'attack' }));
+        if (pair.defend) wrap.appendChild(createCardEl(pair.defend, { extraClass: 'defend' }));
+        if (!pair.defend && role === 'defend') {
+          wrap.style.cursor = 'pointer';
+          wrap.addEventListener('click', function () {
+            selectedDefendIndex = tIdx;
+            if (mode === 'bot' && game) renderFromGame();
+            else if (onlineState) renderOnlineState(onlineState);
+          });
+        }
+        if (tableRoot) tableRoot.appendChild(wrap);
+      })(t, state.table[t]);
     }
   }
 
@@ -330,7 +350,25 @@ function renderTableState(state, opts) {
           onClick: canPlay ? function () {
             ensureAudio();
             if (canAttack && opts.onAttack) opts.onAttack(card);
-            else if (canDefend && opts.onDefend) opts.onDefend(defendByCard[key][0], card);
+            else if (canDefend && opts.onDefend) {
+              var idxs = defendByCard[key];
+              var useIdx = idxs[0];
+              if (selectedDefendIndex != null && idxs.indexOf(selectedDefendIndex) !== -1) {
+                useIdx = selectedDefendIndex;
+              } else if (idxs.length > 1 && selectedDefendIndex == null) {
+                if (hint) {
+                  hint.classList.remove('hide');
+                  hint.textContent = 'Сначала нажми карту на столе, которую отбиваешь';
+                }
+                selectedDefendIndex = idxs[0];
+                useIdx = idxs[0];
+                if (mode === 'bot' && game) renderFromGame();
+                else if (onlineState) renderOnlineState(onlineState);
+                return;
+              }
+              selectedDefendIndex = null;
+              opts.onDefend(useIdx, card);
+            }
           } : null,
         });
         handRoot.appendChild(el);
@@ -396,6 +434,7 @@ function startVsBot() {
   }
   mode = 'bot';
   onlineState = null;
+  selectedDefendIndex = null;
   var name = (currentUser && currentUser.first_name) || 'Игрок';
   myId = String((currentUser && currentUser.telegram_id) || 'player');
   var players = [{ id: myId, name: name }];
@@ -478,8 +517,7 @@ window.renderOnlineState = renderOnlineState;
 
 function wsSend(type, extra) {
   if (!ws || ws.readyState !== 1) return;
-  var msg = Object.assign({ type: type }, extra || {});
-  ws.send(JSON.stringify(msg));
+  ws.send(JSON.stringify(Object.assign({ type: type }, extra || {})));
 }
 
 async function authenticate() {
@@ -496,8 +534,18 @@ async function authenticate() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         initData: tg.initData,
-        referrerId: tg.initDataUnsafe && tg.initDataUnsafe.start_param
-          ? parseInt(tg.initDataUnsafe.start_param, 10) : null,
+        referrerId: (function () {
+          var sp = (tg.initDataUnsafe && tg.initDataUnsafe.start_param) || null;
+          if (!sp && tg.initData) {
+            try {
+              var p = new URLSearchParams(tg.initData);
+              sp = p.get('start_param');
+            } catch (e) {}
+          }
+          if (!sp) return null;
+          var n = parseInt(String(sp).replace(/\D/g, ''), 10);
+          return isNaN(n) ? null : n;
+        })(),
       }),
       signal: controller.signal,
     });
@@ -564,26 +612,20 @@ function bind() {
     if (mode === 'bot' && game) {
       var res = game.take(myId);
       if (!res.ok) flash(res.error); else { sfxTake(); renderFromGame(); }
-    } else if (mode === 'online') {
-      sfxTake(); wsSend('take');
-    }
+    } else if (mode === 'online') { sfxTake(); wsSend('take'); }
   });
   if ($('btn-done')) $('btn-done').addEventListener('click', function () {
     if (mode === 'bot' && game) {
       var res = game.bito(myId);
       if (!res.ok) flash(res.error); else { sfxBito(); renderFromGame(); }
-    } else if (mode === 'online') {
-      sfxBito(); wsSend('bito');
-    }
+    } else if (mode === 'online') { sfxBito(); wsSend('bito'); }
   });
   if ($('btn-pass')) $('btn-pass').addEventListener('click', function () {
     if (mode === 'bot' && game) {
       var res = game.bito(myId);
       if (!res.ok) res = game.pass(myId);
       if (!res.ok) flash(res.error); else { sfxBito(); renderFromGame(); }
-    } else if (mode === 'online') {
-      sfxBito(); wsSend('pass');
-    }
+    } else if (mode === 'online') { sfxBito(); wsSend('pass'); }
   });
 
   ['btn-tournament', 'btn-settings'].forEach(function (id) {
