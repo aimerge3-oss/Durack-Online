@@ -1,6 +1,6 @@
 /**
- * Турниры: авто каждые 6–12 ч, приз 20, длительность 15–20 мин
- * Крупные — только админ
+ * Турниры: авто ~8ч, приз 20, 18 мин
+ * Победитель = макс. score в tournament_players
  */
 
 const cors = {
@@ -9,7 +9,7 @@ const cors = {
 };
 
 const AUTO_PRIZE = 20;
-const AUTO_DURATION_MIN = 18; // 15–20 мин
+const AUTO_DURATION_MIN = 18;
 const AUTO_MAX_PLAYERS = 8;
 
 function getTelegramId(request) {
@@ -41,26 +41,30 @@ async function ensureTables(env) {
       is_auto INTEGER DEFAULT 0,
       ends_at DATETIME,
       winner_id INTEGER,
+      bracket_json TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `).run();
-  try {
-    await env.DB.prepare('ALTER TABLE tournaments ADD COLUMN is_auto INTEGER DEFAULT 0').run();
-  } catch (e) {}
-  try {
-    await env.DB.prepare('ALTER TABLE tournaments ADD COLUMN ends_at DATETIME').run();
-  } catch (e) {}
-  try {
-    await env.DB.prepare('ALTER TABLE tournaments ADD COLUMN winner_id INTEGER').run();
-  } catch (e) {}
+  for (const col of [
+    'ALTER TABLE tournaments ADD COLUMN is_auto INTEGER DEFAULT 0',
+    'ALTER TABLE tournaments ADD COLUMN ends_at DATETIME',
+    'ALTER TABLE tournaments ADD COLUMN winner_id INTEGER',
+    'ALTER TABLE tournaments ADD COLUMN bracket_json TEXT',
+  ]) {
+    try { await env.DB.prepare(col).run(); } catch (e) {}
+  }
   await env.DB.prepare(`
     CREATE TABLE IF NOT EXISTS tournament_players (
       tournament_id INTEGER NOT NULL,
       telegram_id INTEGER NOT NULL,
+      score INTEGER DEFAULT 0,
       joined_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       PRIMARY KEY (tournament_id, telegram_id)
     )
   `).run();
+  try {
+    await env.DB.prepare('ALTER TABLE tournament_players ADD COLUMN score INTEGER DEFAULT 0').run();
+  } catch (e) {}
 }
 
 function randomCode() {
@@ -74,7 +78,23 @@ function endsAtIso(minutes) {
   return new Date(Date.now() + minutes * 60 * 1000).toISOString();
 }
 
-/** Закрыть просроченные + выдать приз случайному участнику (упрощённо) */
+/** Простая сетка: список участников по score */
+function buildBracket(players) {
+  const sorted = [...players].sort((a, b) => (b.score || 0) - (a.score || 0));
+  const rounds = [];
+  // раунд 1 — пары по порядку рейтинга
+  const pairs = [];
+  for (let i = 0; i < sorted.length; i += 2) {
+    pairs.push({
+      a: sorted[i] || null,
+      b: sorted[i + 1] || null,
+      winner: null,
+    });
+  }
+  rounds.push({ name: 'Сетка', matches: pairs });
+  return { ranking: sorted, rounds };
+}
+
 async function finalizeExpired(env) {
   const now = new Date().toISOString();
   const expired = await env.DB.prepare(
@@ -85,28 +105,32 @@ async function finalizeExpired(env) {
 
   for (const t of expired.results || []) {
     const players = await env.DB.prepare(
-      'SELECT telegram_id FROM tournament_players WHERE tournament_id = ?'
+      'SELECT telegram_id, score FROM tournament_players WHERE tournament_id = ?'
     )
       .bind(t.id)
       .all();
     const list = players.results || [];
+    list.sort((a, b) => (b.score || 0) - (a.score || 0));
+
     let winnerId = null;
     if (list.length > 0) {
-      winnerId = list[Math.floor(Math.random() * list.length)].telegram_id;
+      // победитель — макс. score; при равенстве — первый
+      winnerId = list[0].telegram_id;
       const prize = t.prize || AUTO_PRIZE;
       await env.DB.prepare('UPDATE users SET coins = coins + ? WHERE telegram_id = ?')
         .bind(prize, winnerId)
         .run();
     }
+
+    const bracket = buildBracket(list);
     await env.DB.prepare(
-      `UPDATE tournaments SET status = 'finished', winner_id = ? WHERE id = ?`
+      `UPDATE tournaments SET status = 'finished', winner_id = ?, bracket_json = ? WHERE id = ?`
     )
-      .bind(winnerId, t.id)
+      .bind(winnerId, JSON.stringify(bracket), t.id)
       .run();
   }
 }
 
-/** Создать авто-турнир если нет активного */
 export async function createAutoTournament(env) {
   await ensureTables(env);
   await finalizeExpired(env);
@@ -141,14 +165,68 @@ export async function handleTournamentsList(request, env) {
        ORDER BY t.created_at DESC LIMIT 15`
     ).all();
 
+    // последние завершённые с победителем
+    const finished = await env.DB.prepare(
+      `SELECT t.*, u.first_name as winner_name
+       FROM tournaments t
+       LEFT JOIN users u ON u.telegram_id = t.winner_id
+       WHERE t.status = 'finished'
+       ORDER BY t.created_at DESC LIMIT 5`
+    ).all();
+
     return new Response(
-      JSON.stringify({ ok: true, tournaments: rows.results || [] }),
+      JSON.stringify({
+        ok: true,
+        tournaments: rows.results || [],
+        recent: finished.results || [],
+      }),
       { headers: cors }
     );
   } catch (err) {
     return new Response(JSON.stringify({ ok: true, tournaments: [], warn: err.message }), {
       headers: cors,
     });
+  }
+}
+
+/** GET /tournament/:code — детали + сетка */
+export async function handleTournamentDetail(request, env, code) {
+  try {
+    await ensureTables(env);
+    const t = await env.DB.prepare('SELECT * FROM tournaments WHERE code = ?')
+      .bind(String(code).toUpperCase())
+      .first();
+    if (!t) {
+      return new Response(JSON.stringify({ error: 'not found' }), { status: 404, headers: cors });
+    }
+    const players = await env.DB.prepare(
+      `SELECT tp.telegram_id, tp.score, u.first_name, u.username, u.photo_url
+       FROM tournament_players tp
+       LEFT JOIN users u ON u.telegram_id = tp.telegram_id
+       WHERE tp.tournament_id = ?
+       ORDER BY tp.score DESC, tp.joined_at ASC`
+    )
+      .bind(t.id)
+      .all();
+
+    let bracket = null;
+    try {
+      bracket = t.bracket_json ? JSON.parse(t.bracket_json) : buildBracket(players.results || []);
+    } catch (e) {
+      bracket = buildBracket(players.results || []);
+    }
+
+    return new Response(
+      JSON.stringify({
+        ok: true,
+        tournament: t,
+        players: players.results || [],
+        bracket,
+      }),
+      { headers: cors }
+    );
+  } catch (err) {
+    return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: cors });
   }
 }
 
@@ -164,7 +242,7 @@ export async function handleAdminCreateTournament(request, env) {
     }
 
     const body = await request.json().catch(() => ({}));
-    const title = body.title || 'Турнир';
+    const title = body.title || 'Масштабный';
     const maxPlayers = Math.min(32, Math.max(2, parseInt(body.maxPlayers, 10) || 16));
     const prize = Math.min(5000, Math.max(20, parseInt(body.prize, 10) || 100));
     const durationMin = Math.min(120, Math.max(15, parseInt(body.durationMin, 10) || 20));
@@ -193,16 +271,19 @@ export async function handleAdminCloseTournament(request, env) {
       return new Response(JSON.stringify({ error: 'Forbidden' }), { status: 403, headers: cors });
     }
     const body = await request.json();
-    await env.DB.prepare(`UPDATE tournaments SET status = 'finished' WHERE code = ?`)
+    // принудительно закрыть: поставим ends_at в прошлое
+    await env.DB.prepare(
+      `UPDATE tournaments SET ends_at = datetime('now', '-1 minute') WHERE code = ?`
+    )
       .bind(body.code)
       .run();
+    await finalizeExpired(env);
     return new Response(JSON.stringify({ ok: true }), { headers: cors });
   } catch (err) {
     return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: cors });
   }
 }
 
-/** Админ добавляет участника { code, telegramId } */
 export async function handleAdminAddPlayer(request, env) {
   try {
     await ensureTables(env);
@@ -213,12 +294,6 @@ export async function handleAdminAddPlayer(request, env) {
     const body = await request.json();
     const code = String(body.code || '').trim().toUpperCase();
     const tid = parseInt(body.telegramId, 10);
-    if (!code || !tid) {
-      return new Response(JSON.stringify({ error: 'code and telegramId required' }), {
-        status: 400,
-        headers: cors,
-      });
-    }
     const t = await env.DB.prepare('SELECT * FROM tournaments WHERE code = ?').bind(code).first();
     if (!t || t.status === 'finished') {
       return new Response(JSON.stringify({ error: 'Турнир недоступен' }), {
@@ -227,7 +302,7 @@ export async function handleAdminAddPlayer(request, env) {
       });
     }
     await env.DB.prepare(
-      'INSERT OR IGNORE INTO tournament_players (tournament_id, telegram_id) VALUES (?, ?)'
+      'INSERT OR IGNORE INTO tournament_players (tournament_id, telegram_id, score) VALUES (?, ?, 0)'
     )
       .bind(t.id, tid)
       .run();
@@ -273,7 +348,7 @@ export async function handleTournamentJoin(request, env) {
     }
 
     await env.DB.prepare(
-      'INSERT OR IGNORE INTO tournament_players (tournament_id, telegram_id) VALUES (?, ?)'
+      'INSERT OR IGNORE INTO tournament_players (tournament_id, telegram_id, score) VALUES (?, ?, 0)'
     )
       .bind(t.id, telegramId)
       .run();
@@ -312,4 +387,4 @@ export async function handleAdminCheck(request, env) {
   );
 }
 
-export { AUTO_PRIZE, AUTO_DURATION_MIN };
+export { AUTO_PRIZE, AUTO_DURATION_MIN, ensureTables };

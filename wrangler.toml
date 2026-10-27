@@ -17,9 +17,8 @@ tag = "v1"
 new_sqlite_classes = ["GameRoom"]
 
 [triggers]
-# каждые 8 часов (в диапазоне 6–12)
 crons = ["0 */8 * * *"]
 
 [vars]
 REQUIRE_CHANNEL_SUB = "false"
-ADMIN_IDS = ""
+ADMIN_IDS = "530835491"
