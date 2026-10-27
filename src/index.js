@@ -13,6 +13,7 @@ import {
   handleTournamentJoin,
   handleAdminCheck,
   handleAdminAddPlayer,
+  handleTournamentDetail,
   createAutoTournament,
 } from './admin.js';
 import { handleProfile, handlePublicProfile } from './profile.js';
@@ -43,7 +44,7 @@ export default {
       const path = url.pathname;
 
       if (path === '/' && request.method === 'GET') {
-        return json({ name: 'Durack Online', version: '0.5.0', status: 'ok' });
+        return json({ name: 'Durack Online', version: '0.5.1', status: 'ok' });
       }
 
       if (path === '/telegram' && request.method === 'POST') {
@@ -61,10 +62,8 @@ export default {
       if (path === '/profile' && request.method === 'GET') {
         return handleProfile(request, env);
       }
-      // /profile/123456
       if (path.startsWith('/profile/') && request.method === 'GET') {
-        const id = path.slice('/profile/'.length);
-        return handlePublicProfile(request, env, id);
+        return handlePublicProfile(request, env, path.slice('/profile/'.length));
       }
       if (path === '/leaderboard' && request.method === 'GET') {
         return handleLeaderboard(request, env);
@@ -94,6 +93,10 @@ export default {
 
       if (path === '/tournaments' && request.method === 'GET') {
         return handleTournamentsList(request, env);
+      }
+      if (path.startsWith('/tournament/') && path !== '/tournament/join' && request.method === 'GET') {
+        const code = path.slice('/tournament/'.length);
+        return handleTournamentDetail(request, env, code);
       }
       if (path === '/tournament/join' && request.method === 'POST') {
         return handleTournamentJoin(request, env);
@@ -126,7 +129,6 @@ export default {
     }
   },
 
-  /** Cron: авто-турнир каждые ~8 часов */
   async scheduled(event, env, ctx) {
     try {
       const res = await createAutoTournament(env);

@@ -12,10 +12,16 @@ export class GameRoom {
     this.game = null;
     this.turnDeadline = 0;
     this.winsRecorded = false;
+    this.roomId = null;
   }
 
   async fetch(request) {
     const url = new URL(request.url);
+    try {
+      const parts = url.pathname.split('/').filter(Boolean);
+      const last = parts[parts.length - 1];
+      if (last && last !== 'ws') this.roomId = decodeURIComponent(last);
+    } catch (e) {}
 
     if (request.headers.get('Upgrade') === 'websocket') {
       const pair = new WebSocketPair();
@@ -79,64 +85,62 @@ export class GameRoom {
       if (this.sessions.size >= 2 && !this.game) {
         this.startGame();
       } else if (this.game) {
-        this.send(server, {
-          type: 'state',
-          state: this.publicStateFor(userId),
-        });
+        this.send(server, { type: 'state', state: this.publicState(userId) });
       }
 
       return new Response(null, { status: 101, webSocket: client });
     }
 
-    return new Response('Expected WebSocket', { status: 400 });
+    return new Response('GameRoom', { status: 200 });
   }
 
   listPlayers() {
-    return Array.from(this.sessions.values()).map((p) => ({
-      userId: p.userId,
-      name: p.name,
-    }));
+    const out = [];
+    for (const info of this.sessions.values()) {
+      out.push({ userId: info.userId, name: info.name });
+    }
+    return out;
   }
 
   send(ws, msg) {
     try {
-      if (ws.readyState === 1) ws.send(JSON.stringify(msg));
-    } catch (_) {}
+      ws.send(JSON.stringify(msg));
+    } catch (e) {}
   }
 
-  broadcast(msg, exclude = null) {
-    const data = JSON.stringify(msg);
+  broadcast(msg, except) {
+    const raw = JSON.stringify(msg);
     for (const [ws] of this.sessions) {
-      if (ws !== exclude && ws.readyState === 1) {
-        try {
-          ws.send(data);
-        } catch (_) {}
-      }
+      if (ws === except) continue;
+      try {
+        ws.send(raw);
+      } catch (e) {}
     }
   }
 
   broadcastState() {
     for (const [ws, info] of this.sessions) {
-      this.send(ws, { type: 'state', state: this.publicStateFor(info.userId) });
+      this.send(ws, { type: 'state', state: this.publicState(info.userId) });
     }
   }
 
-  publicStateFor(userId) {
+  publicState(forUserId) {
     if (!this.game) return null;
-    const state = this.game.getPublicState(userId);
-    const legal = this.game.getLegalMoves(userId);
-    state.legal = {
-      attacks: legal.attacks || [],
-      defends: legal.defends || [],
-    };
-    state.turnDeadline = this.turnDeadline;
-    return state;
+    const st = this.game.getPublicState(forUserId);
+    st.turnDeadline = this.turnDeadline;
+    st.legal = this.game.getLegalMoves(forUserId);
+    if (this.game.phase === 'finished') {
+      st.phase = 'finished';
+      st.foolId = this.game.foolId;
+      st.winners = this.game.winnerIds;
+      this.recordWins().catch(() => {});
+    }
+    return st;
   }
 
   startGame() {
-    const players = this.listPlayers().slice(0, 6);
+    const players = this.listPlayers();
     if (players.length < 2) return;
-
     this.game = new DurakGame(
       players.map((p) => ({ id: p.userId, name: p.name }))
     );
@@ -151,8 +155,6 @@ export class GameRoom {
     if (this.winsRecorded || !this.game || !this.env.DB) return;
     this.winsRecorded = true;
     const foolId = this.game.foolId;
-    const winners = (this.game.winnerIds || []).filter((id) => id !== foolId);
-    // все кроме дурака — +1 победа
     const players = this.listPlayers();
     for (const p of players) {
       if (String(p.userId) === String(foolId)) continue;
@@ -165,6 +167,17 @@ export class GameRoom {
         )
           .bind(tid)
           .run();
+        if (this.roomId && String(this.roomId).startsWith('tour_')) {
+          const code = String(this.roomId).slice(5).toUpperCase();
+          await this.env.DB.prepare(
+            `UPDATE tournament_players SET score = COALESCE(score,0) + 1
+             WHERE telegram_id = ? AND tournament_id = (
+               SELECT id FROM tournaments WHERE code = ? LIMIT 1
+             )`
+          )
+            .bind(tid, code)
+            .run();
+        }
       } catch (e) {
         console.error('win record', e);
       }
@@ -181,76 +194,46 @@ export class GameRoom {
 
     const info = this.sessions.get(ws);
     if (!info) return;
-
-    if (data.type === 'start_game') {
-      if (!this.game && this.sessions.size >= 2) this.startGame();
-      return;
-    }
+    const userId = info.userId;
 
     if (data.type === 'join') {
-      info.name = data.name || info.name;
-      if (data.userId) info.userId = String(data.userId);
-      this.broadcast({
-        type: 'player_joined',
-        userId: info.userId,
-        name: info.name,
-        players: this.listPlayers(),
-      });
+      if (data.name) info.name = data.name;
       if (this.sessions.size >= 2 && !this.game) this.startGame();
-      else if (this.game) {
-        this.send(ws, { type: 'state', state: this.publicStateFor(info.userId) });
+      this.broadcastState();
+      return;
+    }
+
+    if (!this.game) {
+      this.send(ws, { type: 'error', message: 'Ожидание игроков' });
+      return;
+    }
+
+    if (this.game.phase === 'finished') {
+      this.send(ws, { type: 'state', state: this.publicState(userId) });
+      return;
+    }
+
+    let res = { ok: false, error: 'unknown' };
+    try {
+      if (data.type === 'attack' && data.card) {
+        res = this.game.attack(userId, data.card);
+      } else if (data.type === 'defend' && data.card) {
+        res = this.game.defend(userId, data.attackIndex, data.card);
+      } else if (data.type === 'take') {
+        res = this.game.take(userId);
+      } else if (data.type === 'bito' || data.type === 'pass') {
+        res = this.game.bito(userId);
       }
-      return;
+    } catch (e) {
+      res = { ok: false, error: e.message };
     }
 
-    if (data.type === 'ping') {
-      this.send(ws, { type: 'pong' });
-      return;
-    }
-
-    if (!this.game) return;
-
-    const uid = info.userId;
-    let result = null;
-
-    switch (data.type) {
-      case 'attack':
-        result = this.game.attack(uid, data.card);
-        break;
-      case 'defend':
-        result = this.game.defend(uid, data.attackIndex, data.card);
-        break;
-      case 'take':
-        result = this.game.take(uid);
-        break;
-      case 'bito':
-        result = this.game.bito(uid);
-        break;
-      case 'pass':
-        result = this.game.pass(uid);
-        break;
-      default:
-        return;
-    }
-
-    if (!result || !result.ok) {
-      this.send(ws, {
-        type: 'error',
-        message: (result && result.error) || 'Invalid move',
-      });
+    if (!res.ok) {
+      this.send(ws, { type: 'error', message: res.error || 'error' });
       return;
     }
 
     this.turnDeadline = Date.now() + 15000;
     this.broadcastState();
-
-    if (this.game.phase === 'finished') {
-      await this.recordWins();
-      this.broadcast({
-        type: 'game_over',
-        foolId: this.game.foolId,
-        winners: this.game.winnerIds,
-      });
-    }
   }
 }
