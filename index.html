@@ -6,7 +6,7 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <title>Дурак Онлайн</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <link rel="stylesheet" href="styles.css?v=20261027e" />
+  <link rel="stylesheet" href="styles.css?v=20261027f" />
 </head>
 <body>
   <div id="app">
@@ -16,7 +16,7 @@
     </div>
     <div id="menu" class="screen hidden">
       <div class="top-bar">
-        <div class="user-info">
+        <div class="user-info" id="user-info-click">
           <img id="user-avatar" src="" alt="" class="avatar" />
           <span id="user-name">Игрок</span>
         </div>
@@ -50,7 +50,7 @@
         <button class="btn" id="btn-tournament">Турниры</button>
         <button class="btn" id="btn-settings">Настройки</button>
       </div>
-      <div class="footer"><p class="version">Durack Online v0.4.1</p></div>
+      <div class="footer"><p class="version">Durack Online v0.4.2</p></div>
     </div>
     <div id="leaderboard" class="screen hidden">
       <div class="header"><button class="btn-back" id="btn-back-lb">← Назад</button><h2>Доска почёта</h2></div>
@@ -108,9 +108,12 @@
       <div class="game-top">
         <button class="btn-back" id="btn-leave">Выйти</button>
         <div class="timer-wrap"><span id="timer">15</span></div>
-        <div class="deck-info">
-          <div class="trump-label"><span class="trump-label-text">Козырь</span><span class="trump-suit-big" id="trump-suit-big">♠</span></div>
-          <div class="trump-pile">
+        <div class="deck-info" id="deck-info">
+          <div class="trump-label">
+            <span class="trump-label-text">Козырь</span>
+            <span class="trump-suit-big" id="trump-suit-big">♠</span>
+          </div>
+          <div class="trump-pile" id="trump-pile">
             <div class="trump-card-face" id="trump-card-face"></div>
             <div class="deck-stack" id="deck-stack"></div>
             <span class="deck-count-badge" id="deck-count">24</span>
@@ -124,7 +127,7 @@
         <p class="table-hint" id="table-hint">...</p>
       </div>
       <div class="hand-area"><div class="hand" id="player-hand"></div></div>
-      <div class="actions">
+      <div class="actions" id="actions">
         <button class="btn action-btn" id="btn-take">Беру</button>
         <button class="btn action-btn primary" id="btn-done">Бито</button>
         <button class="btn action-btn" id="btn-pass">Пас</button>
@@ -141,13 +144,14 @@
       }
     }, 4000);
   </script>
-  <script src="durak.js?v=20261027e"></script>
-  <script src="drag-play.js?v=20261027e"></script>
-  <script src="app.js?v=20261027e"></script>
-  <script src="app-patch.js?v=20261027e"></script>
-  <script src="presence.js?v=20261027e"></script>
-  <script src="stage2.js?v=20261027e"></script>
-  <script src="stage3.js?v=20261027e"></script>
-  <script src="stage4.js?v=20261027e"></script>
+  <script src="durak.js?v=20261027f"></script>
+  <script src="drag-play.js?v=20261027f"></script>
+  <script src="app.js?v=20261027f"></script>
+  <script src="app-patch.js?v=20261027f"></script>
+  <script src="ui-fix.js?v=20261027f"></script>
+  <script src="presence.js?v=20261027f"></script>
+  <script src="stage2.js?v=20261027f"></script>
+  <script src="stage3.js?v=20261027f"></script>
+  <script src="stage4.js?v=20261027f"></script>
 </body>
 </html>
