@@ -73,15 +73,15 @@ class DurakGame {
     this.phase = 'attack';
     this.started = true;
     this.table = [];
-    this.refreshMaxAttack();
+    this.setMaxAttackForRound();
     return this.getPublicState();
   }
 
-  refreshMaxAttack() {
+  /** Лимит на раунд: min(6, карт у защитника на начало хода) — не уменьшается после отбоя */
+  setMaxAttackForRound() {
     const def = this.players[this.defenderIndex];
-    const handLeft = def ? def.hand.length : 6;
-    // не больше чем у защитника карт + уже на столе непокрытых
-    this.maxAttackCards = Math.min(6, Math.max(handLeft + this.uncoveredCount(), this.table.length || 1));
+    const handSize = def ? def.hand.length : 6;
+    this.maxAttackCards = Math.min(6, Math.max(1, handSize));
   }
 
   nextActiveIndex(from) {
@@ -109,7 +109,6 @@ class DurakGame {
     return this.table.filter((p) => !p.defend).length;
   }
 
-  /** Атака или подкид (вт.ч. во время defend) */
   attack(playerId, card) {
     const allowedPhase =
       this.phase === 'attack' ||
@@ -122,8 +121,23 @@ class DurakGame {
     if (!player || player.out) return { ok: false, error: 'Invalid player' };
     if (playerId !== this.attacker.id) return { ok: false, error: 'Not your turn to attack' };
 
-    this.refreshMaxAttack();
-    if (this.table.length >= this.maxAttackCards) return { ok: false, error: 'Max cards on table' };
+    if (this.table.length >= this.maxAttackCards) {
+      return { ok: false, error: 'Max cards on table' };
+    }
+
+    // нельзя подкидывать больше, чем у защитника осталось карт (непокрытые + рука)
+    const def = this.defender;
+    if (def && this.table.length > 0) {
+      const canStillCover = def.hand.length + this.uncoveredCount();
+      // новая атака увеличит uncovered на 1
+      if (this.uncoveredCount() + 1 > def.hand.length + this.uncoveredCount()) {
+        /* always false - skip */
+      }
+      // правильно: число непокрытых после подкида не > карт в руке защитника
+      if (this.uncoveredCount() >= def.hand.length) {
+        return { ok: false, error: 'Defender has no cards to cover' };
+      }
+    }
 
     const idx = player.hand.findIndex((c) => c.rank === card.rank && c.suit === card.suit);
     if (idx === -1) return { ok: false, error: 'Card not in hand' };
@@ -169,7 +183,7 @@ class DurakGame {
     this.attackerIndex = this.nextActiveIndex(this.defenderIndex);
     this.defenderIndex = this.nextActiveIndex(this.attackerIndex);
     this.phase = this.isFinished() ? 'finished' : 'attack';
-    this.refreshMaxAttack();
+    this.setMaxAttackForRound();
     return { ok: true, state: this.getPublicState() };
   }
 
@@ -184,7 +198,7 @@ class DurakGame {
     this.attackerIndex = this.defenderIndex;
     this.defenderIndex = this.nextActiveIndex(this.attackerIndex);
     this.phase = this.isFinished() ? 'finished' : 'attack';
-    this.refreshMaxAttack();
+    this.setMaxAttackForRound();
     return { ok: true, state: this.getPublicState() };
   }
 
@@ -268,13 +282,18 @@ class DurakGame {
         (this.phase === 'defend' && this.table.length > 0));
 
     if (canAttackNow) {
-      if (this.table.length === 0) {
-        player.hand.forEach((c) => attacks.push(c));
-      } else {
-        const ranks = this.ranksOnTable();
-        player.hand.forEach((c) => {
-          if (ranks.has(c.rank)) attacks.push(c);
-        });
+      // доп. проверка: есть ли чем отбивать
+      const def = this.defender;
+      const canAdd = !def || this.table.length === 0 || this.uncoveredCount() < def.hand.length;
+      if (canAdd) {
+        if (this.table.length === 0) {
+          player.hand.forEach((c) => attacks.push(c));
+        } else {
+          const ranks = this.ranksOnTable();
+          player.hand.forEach((c) => {
+            if (ranks.has(c.rank)) attacks.push(c);
+          });
+        }
       }
     }
 

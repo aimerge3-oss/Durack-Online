@@ -74,14 +74,14 @@ export class DurakGame {
     this.phase = 'attack';
     this.started = true;
     this.table = [];
-    this.refreshMaxAttack();
+    this.setMaxAttackForRound();
     return this.getPublicState();
   }
 
-  refreshMaxAttack() {
+  setMaxAttackForRound() {
     const def = this.players[this.defenderIndex];
-    const handLeft = def ? def.hand.length : 6;
-    this.maxAttackCards = Math.min(6, Math.max(handLeft + this.uncoveredCount(), this.table.length || 1));
+    const handSize = def ? def.hand.length : 6;
+    this.maxAttackCards = Math.min(6, Math.max(1, handSize));
   }
 
   nextActiveIndex(from) {
@@ -119,9 +119,12 @@ export class DurakGame {
     const player = this.players.find((p) => p.id === playerId);
     if (!player || player.out) return { ok: false, error: 'Invalid player' };
     if (playerId !== this.attacker.id) return { ok: false, error: 'Not your turn to attack' };
-
-    this.refreshMaxAttack();
     if (this.table.length >= this.maxAttackCards) return { ok: false, error: 'Max cards on table' };
+
+    const def = this.defender;
+    if (def && this.table.length > 0 && this.uncoveredCount() >= def.hand.length) {
+      return { ok: false, error: 'Defender has no cards to cover' };
+    }
 
     const idx = player.hand.findIndex((c) => c.rank === card.rank && c.suit === card.suit);
     if (idx === -1) return { ok: false, error: 'Card not in hand' };
@@ -167,7 +170,7 @@ export class DurakGame {
     this.attackerIndex = this.nextActiveIndex(this.defenderIndex);
     this.defenderIndex = this.nextActiveIndex(this.attackerIndex);
     this.phase = this.isFinished() ? 'finished' : 'attack';
-    this.refreshMaxAttack();
+    this.setMaxAttackForRound();
     return { ok: true, state: this.getPublicState() };
   }
 
@@ -182,7 +185,7 @@ export class DurakGame {
     this.attackerIndex = this.defenderIndex;
     this.defenderIndex = this.nextActiveIndex(this.attackerIndex);
     this.phase = this.isFinished() ? 'finished' : 'attack';
-    this.refreshMaxAttack();
+    this.setMaxAttackForRound();
     return { ok: true, state: this.getPublicState() };
   }
 
@@ -266,12 +269,16 @@ export class DurakGame {
         (this.phase === 'defend' && this.table.length > 0));
 
     if (canAttackNow) {
-      if (this.table.length === 0) player.hand.forEach((c) => attacks.push(c));
-      else {
-        const ranks = this.ranksOnTable();
-        player.hand.forEach((c) => {
-          if (ranks.has(c.rank)) attacks.push(c);
-        });
+      const def = this.defender;
+      const canAdd = !def || this.table.length === 0 || this.uncoveredCount() < def.hand.length;
+      if (canAdd) {
+        if (this.table.length === 0) player.hand.forEach((c) => attacks.push(c));
+        else {
+          const ranks = this.ranksOnTable();
+          player.hand.forEach((c) => {
+            if (ranks.has(c.rank)) attacks.push(c);
+          });
+        }
       }
     }
 
