@@ -10,15 +10,16 @@ binding = "DB"
 database_name = "durack-db"
 database_id = "8ed87a1a-3f9d-4f15-aa6a-d9a77a415baf"
 
-# Durable Objects для комнат (realtime)
 [[durable_objects.bindings]]
 name = "GAME_ROOM"
 class_name = "GameRoom"
 
-# На free-плане обязательно new_sqlite_classes
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["GameRoom"]
 
 [vars]
 REQUIRE_CHANNEL_SUB = "false"
+# Твой telegram_id через запятую (админ турниров)
+# ADMIN_IDS = "123456789"
+ADMIN_IDS = ""

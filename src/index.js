@@ -5,6 +5,15 @@
 import { handleAuth } from './auth.js';
 import { handleMe, handleLeaderboard, handleOnline, handlePresence } from './api.js';
 import { handleShop, handleBuy } from './shop.js';
+import { handleQuestsList, handleQuestEvent, handleQuestClaim } from './quests.js';
+import {
+  handleTournamentsList,
+  handleAdminCreateTournament,
+  handleAdminCloseTournament,
+  handleTournamentJoin,
+  handleAdminCheck,
+} from './admin.js';
+import { handleProfile } from './profile.js';
 import { GameRoom } from './game-room.js';
 import { handleTelegramWebhook, handleSetWebhook } from './bot.js';
 
@@ -32,7 +41,7 @@ export default {
       const path = url.pathname;
 
       if (path === '/' && request.method === 'GET') {
-        return json({ name: 'Durack Online', version: '0.3.0', status: 'ok' });
+        return json({ name: 'Durack Online', version: '0.4.0', status: 'ok' });
       }
 
       if (path === '/telegram' && request.method === 'POST') {
@@ -46,6 +55,9 @@ export default {
       }
       if (path === '/me' && request.method === 'GET') {
         return handleMe(request, env);
+      }
+      if (path === '/profile' && request.method === 'GET') {
+        return handleProfile(request, env);
       }
       if (path === '/leaderboard' && request.method === 'GET') {
         return handleLeaderboard(request, env);
@@ -61,6 +73,34 @@ export default {
       }
       if (path === '/shop/buy' && request.method === 'POST') {
         return handleBuy(request, env);
+      }
+
+      // quests
+      if (path === '/quests' && request.method === 'GET') {
+        return handleQuestsList(request, env);
+      }
+      if (path === '/quests/event' && request.method === 'POST') {
+        return handleQuestEvent(request, env);
+      }
+      if (path === '/quests/claim' && request.method === 'POST') {
+        return handleQuestClaim(request, env);
+      }
+
+      // tournaments
+      if (path === '/tournaments' && request.method === 'GET') {
+        return handleTournamentsList(request, env);
+      }
+      if (path === '/tournament/join' && request.method === 'POST') {
+        return handleTournamentJoin(request, env);
+      }
+      if (path === '/admin/me' && request.method === 'GET') {
+        return handleAdminCheck(request, env);
+      }
+      if (path === '/admin/tournament' && request.method === 'POST') {
+        return handleAdminCreateTournament(request, env);
+      }
+      if (path === '/admin/tournament/close' && request.method === 'POST') {
+        return handleAdminCloseTournament(request, env);
       }
 
       if (path.startsWith('/ws/') && request.method === 'GET') {
