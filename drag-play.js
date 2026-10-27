@@ -1,9 +1,9 @@
 /**
- * Drag & drop / touch: перетаскивание карт на стол
+ * Drag / touch play cards onto table pairs (expanded hit area)
  */
 (function () {
-  var dragState = null;
   var ghost = null;
+  var dragState = null;
 
   function clearGhost() {
     if (ghost && ghost.parentNode) ghost.parentNode.removeChild(ghost);
@@ -14,9 +14,9 @@
     });
   }
 
-  function makeGhost(fromEl, x, y) {
+  function startGhost(cardEl, x, y) {
     clearGhost();
-    ghost = fromEl.cloneNode(true);
+    ghost = cardEl.cloneNode(true);
     ghost.classList.add('card-ghost');
     ghost.style.position = 'fixed';
     ghost.style.left = x - 30 + 'px';
@@ -30,6 +30,43 @@
     document.body.classList.add('dragging-card');
   }
 
+  function findDropZone(x, y) {
+    // сначала точное попадание
+    var under = document.elementFromPoint(x, y);
+    if (under) {
+      var z = under.closest('[data-drop]');
+      if (z) return z;
+    }
+    // расширенная зона: ищем ближайшую непокрытую пару в радиусе ~56px
+    var pairs = document.querySelectorAll('.table-pair[data-drop], .table-area[data-drop]');
+    var best = null;
+    var bestDist = 56;
+    for (var i = 0; i < pairs.length; i++) {
+      var el = pairs[i];
+      var r = el.getBoundingClientRect();
+      var cx = r.left + r.width / 2;
+      var cy = r.top + r.height / 2;
+      var dx = x - cx;
+      var dy = y - cy;
+      var d = Math.sqrt(dx * dx + dy * dy);
+      // также считаем «внутри расширенного прямоугольника»
+      var pad = 28;
+      var inside =
+        x >= r.left - pad &&
+        x <= r.right + pad &&
+        y >= r.top - pad &&
+        y <= r.bottom + pad;
+      if (inside && d < bestDist) {
+        bestDist = d;
+        best = el;
+      } else if (d < bestDist) {
+        bestDist = d;
+        best = el;
+      }
+    }
+    return best;
+  }
+
   function moveGhost(x, y) {
     if (!ghost) return;
     ghost.style.left = x - 30 + 'px';
@@ -38,48 +75,40 @@
     document.querySelectorAll('.drop-hover').forEach(function (el) {
       el.classList.remove('drop-hover');
     });
-    var under = document.elementFromPoint(x, y);
-    if (!under) return;
-    var zone = under.closest('[data-drop]');
+    var zone = findDropZone(x, y);
     if (zone) zone.classList.add('drop-hover');
   }
 
   function finishDrop(x, y) {
-    var under = document.elementFromPoint(x, y);
+    var zone = findDropZone(x, y);
     clearGhost();
-    if (!dragState || !under) {
+    if (!dragState || !zone) {
       dragState = null;
       return;
     }
-    var zone = under.closest('[data-drop]');
     var payload = dragState;
     dragState = null;
-    if (!zone) return;
 
     var kind = zone.getAttribute('data-drop');
-    if (payload.canDefend && kind === 'defend') {
+    if (payload.canDefend && (kind === 'defend' || kind === 'attack')) {
       var idx = parseInt(zone.getAttribute('data-attack-index'), 10);
-      if (payload.defendIdxs.indexOf(idx) !== -1 && typeof payload.onDefend === 'function') {
+      if (isNaN(idx) && payload.defendIdxs && payload.defendIdxs.length) idx = payload.defendIdxs[0];
+      if (payload.defendIdxs && payload.defendIdxs.indexOf(idx) !== -1 && typeof payload.onDefend === 'function') {
         payload.onDefend(idx, payload.card);
       }
       return;
     }
-    if (payload.canAttack && (kind === 'attack' || kind === 'table')) {
+    if (payload.canAttack && (kind === 'attack' || kind === 'table' || kind === 'defend')) {
       if (typeof payload.onAttack === 'function') payload.onAttack(payload.card);
     }
   }
 
-  /**
-   * @param {HTMLElement} el
-   * @param {object} opts { card, canAttack, canDefend, defendIdxs, onAttack, onDefend }
-   */
   window.attachCardPlay = function (el, opts) {
     if (!opts || (!opts.canAttack && !opts.canDefend)) return;
 
     el.classList.add('playable');
     el.style.touchAction = 'none';
 
-    // Клик: если одна цель отбоя или атака
     el.addEventListener('click', function (e) {
       e.stopPropagation();
       if (opts.canDefend && opts.defendIdxs && opts.defendIdxs.length === 1) {
@@ -90,7 +119,6 @@
         opts.onAttack(opts.card);
         return;
       }
-      // несколько целей — нужно перетащить
       var hint = document.getElementById('table-hint');
       if (hint) {
         hint.classList.remove('hide');
@@ -98,65 +126,23 @@
       }
     });
 
-    // Mouse drag
-    el.addEventListener('mousedown', function (e) {
-      if (e.button !== 0) return;
+    el.addEventListener('touchstart', function (e) {
+      if (!e.touches || !e.touches[0]) return;
+      var t = e.touches[0];
+      dragState = opts;
+      startGhost(el, t.clientX, t.clientY);
+    }, { passive: true });
+
+    el.addEventListener('touchmove', function (e) {
+      if (!dragState || !e.touches || !e.touches[0]) return;
       e.preventDefault();
-      dragState = {
-        card: opts.card,
-        canAttack: !!opts.canAttack,
-        canDefend: !!opts.canDefend,
-        defendIdxs: opts.defendIdxs || [],
-        onAttack: opts.onAttack,
-        onDefend: opts.onDefend,
-      };
-      makeGhost(el, e.clientX, e.clientY);
-
-      function onMove(ev) {
-        moveGhost(ev.clientX, ev.clientY);
-      }
-      function onUp(ev) {
-        document.removeEventListener('mousemove', onMove);
-        document.removeEventListener('mouseup', onUp);
-        finishDrop(ev.clientX, ev.clientY);
-      }
-      document.addEventListener('mousemove', onMove);
-      document.addEventListener('mouseup', onUp);
-    });
-
-    // Touch drag
-    el.addEventListener(
-      'touchstart',
-      function (e) {
-        if (!e.touches[0]) return;
-        e.preventDefault();
-        var t = e.touches[0];
-        dragState = {
-          card: opts.card,
-          canAttack: !!opts.canAttack,
-          canDefend: !!opts.canDefend,
-          defendIdxs: opts.defendIdxs || [],
-          onAttack: opts.onAttack,
-          onDefend: opts.onDefend,
-        };
-        makeGhost(el, t.clientX, t.clientY);
-      },
-      { passive: false }
-    );
-
-    el.addEventListener(
-      'touchmove',
-      function (e) {
-        if (!dragState || !e.touches[0]) return;
-        e.preventDefault();
-        moveGhost(e.touches[0].clientX, e.touches[0].clientY);
-      },
-      { passive: false }
-    );
+      var t = e.touches[0];
+      moveGhost(t.clientX, t.clientY);
+    }, { passive: false });
 
     el.addEventListener('touchend', function (e) {
       if (!dragState) return;
-      var t = e.changedTouches && e.changedTouches[0];
+      var t = (e.changedTouches && e.changedTouches[0]) || null;
       if (t) finishDrop(t.clientX, t.clientY);
       else clearGhost();
       dragState = null;
@@ -164,6 +150,23 @@
 
     el.addEventListener('touchcancel', function () {
       clearGhost();
+      dragState = null;
+    });
+
+    el.setAttribute('draggable', 'true');
+    el.addEventListener('dragstart', function (e) {
+      dragState = opts;
+      try {
+        e.dataTransfer.setData('text/plain', JSON.stringify(opts.card));
+        e.dataTransfer.effectAllowed = 'move';
+      } catch (err) {}
+      startGhost(el, e.clientX || 0, e.clientY || 0);
+    });
+    el.addEventListener('drag', function (e) {
+      if (e.clientX || e.clientY) moveGhost(e.clientX, e.clientY);
+    });
+    el.addEventListener('dragend', function (e) {
+      finishDrop(e.clientX, e.clientY);
       dragState = null;
     });
   };

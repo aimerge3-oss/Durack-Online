@@ -1,4 +1,4 @@
-/** UI fixes: compact leaderboard, avatar->profile, trump visible */
+/** UI: leaderboard rows open profile modal + drop zone expand helper */
 (function () {
   var API = 'https://durack-online.pozzistory666.workers.dev';
 
@@ -6,17 +6,6 @@
 
   function show(name) {
     if (typeof window.showScreen === 'function') window.showScreen(name);
-  }
-
-  function wireProfileClick() {
-    var info = document.querySelector('.user-info');
-    if (!info || info.__profileBound) return;
-    info.__profileBound = true;
-    info.style.cursor = 'pointer';
-    info.addEventListener('click', function () {
-      if (typeof window.openProfileScreen === 'function') window.openProfileScreen();
-      else show('profile');
-    });
   }
 
   function renderLeaderboard() {
@@ -40,13 +29,13 @@
           var name = u.first_name || u.username || '?';
           var photo = u.photo_url || '';
           var wins = u.wins_random != null ? u.wins_random : 0;
+          var tid = u.telegram_id || '';
           var letter = name.charAt(0);
           var avatarHtml = photo
-            ? '<img class="lb-avatar" src="' + photo.replace(/"/g, '') + '" alt="" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'" />' +
-              '<div class="lb-avatar lb-fallback" style="display:none">' + letter + '</div>'
+            ? '<img class="lb-avatar" src="' + photo.replace(/"/g, '') + '" alt="" />'
             : '<div class="lb-avatar lb-fallback">' + letter + '</div>';
           html +=
-            '<div class="lb-item">' +
+            '<div class="lb-item lb-clickable" data-tid="' + tid + '">' +
             '<span class="lb-rank">' + (i + 1) + '</span>' +
             avatarHtml +
             '<span class="lb-name">' + name + '</span>' +
@@ -61,32 +50,58 @@
   }
 
   function bind() {
-    wireProfileClick();
     var btn = $('btn-leaderboard');
     if (btn) {
-      // capture so our handler wins over app.js
-      btn.addEventListener('click', function (e) {
-        e.stopImmediatePropagation();
-        e.preventDefault();
-        renderLeaderboard();
-      }, true);
+      btn.addEventListener(
+        'click',
+        function (e) {
+          e.stopImmediatePropagation();
+          e.preventDefault();
+          renderLeaderboard();
+        },
+        true
+      );
     }
     if ($('btn-back-lb')) {
       $('btn-back-lb').addEventListener('click', function () { show('menu'); });
     }
+
+    var list = $('lb-list');
+    if (list && !list.__profileClick) {
+      list.__profileClick = true;
+      list.addEventListener('click', function (e) {
+        var row = e.target.closest('.lb-item');
+        if (!row) return;
+        var tid = row.getAttribute('data-tid');
+        if (tid && typeof window.openProfileModal === 'function') {
+          window.openProfileModal(tid);
+        }
+      });
+    }
   }
 
-  // Always show trump face if content exists
+  // Expand drop targets after each render: larger hit area
+  var dropObs = new MutationObserver(function () {
+    document.querySelectorAll('.table-pair.uncovered').forEach(function (pair) {
+      pair.style.minWidth = '72px';
+      pair.style.minHeight = '96px';
+      pair.style.padding = '8px';
+      pair.style.margin = '4px';
+    });
+  });
+  setTimeout(function () {
+    var table = $('table-cards');
+    if (table) dropObs.observe(table, { childList: true, subtree: true });
+  }, 800);
+
   setInterval(function () {
     var face = $('trump-card-face');
     if (face && face.innerHTML && face.innerHTML.trim()) {
       face.style.display = 'flex';
       face.style.visibility = 'visible';
-      face.style.opacity = '1';
     }
-  }, 500);
+  }, 600);
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bind);
   else bind();
-  setTimeout(wireProfileClick, 800);
 })();
