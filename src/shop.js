@@ -14,27 +14,21 @@ function getTelegramId(request) {
 }
 
 const SEED = [
-  [1, 'Классика', 50, '🃏', 'Карта'],
-  [2, 'Огонь', 100, '🔥', 'Жар'],
-  [3, 'Молния', 150, '⚡', 'Скорость'],
-  [4, 'Корона', 300, '👑', 'Победитель'],
-  [5, 'Черт', 200, '👿', 'Дурак'],
-  [6, 'Звезда', 250, '⭐', 'Удача'],
-  [7, 'Роза', 80, '🌹', 'Стиль'],
-  [8, 'Ракета', 500, '🚀', 'Премиум'],
+  { id: 1, name: 'Классика', price: 50, emoji: '🃏', description: 'Карта' },
+  { id: 2, name: 'Огонь', price: 100, emoji: '🔥', description: 'Жар' },
+  { id: 3, name: 'Молния', price: 150, emoji: '⚡', description: 'Скорость' },
+  { id: 4, name: 'Корона', price: 300, emoji: '👑', description: 'Победитель' },
+  { id: 5, name: 'Черт', price: 200, emoji: '👿', description: 'Дурак' },
+  { id: 6, name: 'Звезда', price: 250, emoji: '⭐', description: 'Удача' },
+  { id: 7, name: 'Роза', price: 80, emoji: '🌹', description: 'Стиль' },
+  { id: 8, name: 'Ракета', price: 500, emoji: '🚀', description: 'Премиум' },
 ];
 
 async function ensureStickers(env) {
   try {
-    const row = await env.DB.prepare('SELECT COUNT(*) as c FROM stickers').first();
-    if (row && row.c > 0) return;
-  } catch (_) {
-    // table may not exist
-  }
-  try {
     await env.DB.prepare(`
       CREATE TABLE IF NOT EXISTS stickers (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id INTEGER PRIMARY KEY,
         name TEXT NOT NULL,
         price INTEGER NOT NULL,
         emoji TEXT,
@@ -53,150 +47,161 @@ async function ensureStickers(env) {
       await env.DB.prepare(
         'INSERT OR IGNORE INTO stickers (id, name, price, emoji, description) VALUES (?, ?, ?, ?, ?)'
       )
-        .bind(s[0], s[1], s[2], s[3], s[4])
+        .bind(s.id, s.name, s.price, s.emoji, s.description)
         .run();
     }
   } catch (e) {
-    console.error('ensureStickers', e);
+    console.error('ensureStickers', e.message);
   }
 }
 
 export async function handleShop(request, env) {
-  await ensureStickers(env);
-  const telegramId = getTelegramId(request);
+  try {
+    await ensureStickers(env);
+    const telegramId = getTelegramId(request);
 
-  let owned = new Set();
-  let coins = 0;
-  let userId = null;
+    let owned = new Set();
+    let coins = 0;
 
-  if (telegramId) {
+    if (telegramId) {
+      try {
+        const user = await env.DB.prepare(
+          'SELECT id, coins FROM users WHERE telegram_id = ?'
+        )
+          .bind(telegramId)
+          .first();
+        if (user) {
+          coins = user.coins || 0;
+          const rows = await env.DB.prepare(
+            'SELECT sticker_id FROM user_stickers WHERE user_id = ?'
+          )
+            .bind(user.id)
+            .all();
+          for (const r of rows.results || []) owned.add(r.sticker_id);
+        }
+      } catch (e) {
+        console.error('shop user', e.message);
+      }
+    }
+
+    let list = SEED.map((s) => ({ ...s, owned: owned.has(s.id) }));
+    try {
+      const stickers = await env.DB.prepare(
+        'SELECT id, name, price, emoji, description FROM stickers ORDER BY price ASC'
+      ).all();
+      if (stickers.results && stickers.results.length) {
+        list = stickers.results.map((s) => ({
+          ...s,
+          owned: owned.has(s.id),
+        }));
+      }
+    } catch (e) {
+      console.error('shop list', e.message);
+    }
+
+    return new Response(JSON.stringify({ ok: true, stickers: list, coins }), {
+      headers: cors,
+    });
+  } catch (err) {
+    return new Response(
+      JSON.stringify({
+        ok: true,
+        stickers: SEED.map((s) => ({ ...s, owned: false })),
+        coins: 0,
+        warn: err.message,
+      }),
+      { headers: cors }
+    );
+  }
+}
+
+export async function handleBuy(request, env) {
+  try {
+    await ensureStickers(env);
+    const telegramId = getTelegramId(request);
+    if (!telegramId) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: cors,
+      });
+    }
+
+    const body = await request.json();
+    const stickerId = parseInt(body.stickerId, 10);
+    if (!stickerId) {
+      return new Response(JSON.stringify({ error: 'stickerId required' }), {
+        status: 400,
+        headers: cors,
+      });
+    }
+
     const user = await env.DB.prepare(
       'SELECT id, coins FROM users WHERE telegram_id = ?'
     )
       .bind(telegramId)
       .first();
-    if (user) {
-      userId = user.id;
-      coins = user.coins || 0;
-      const rows = await env.DB.prepare(
-        'SELECT sticker_id FROM user_stickers WHERE user_id = ?'
-      )
-        .bind(userId)
-        .all();
-      for (const r of rows.results || []) owned.add(r.sticker_id);
+    if (!user) {
+      return new Response(JSON.stringify({ error: 'User not found' }), {
+        status: 404,
+        headers: cors,
+      });
     }
-  }
 
-  const stickers = await env.DB.prepare(
-    'SELECT id, name, price, emoji, description FROM stickers ORDER BY price ASC'
-  ).all();
+    let sticker = await env.DB.prepare(
+      'SELECT id, name, price, emoji FROM stickers WHERE id = ?'
+    )
+      .bind(stickerId)
+      .first();
+    if (!sticker) {
+      sticker = SEED.find((s) => s.id === stickerId);
+    }
+    if (!sticker) {
+      return new Response(JSON.stringify({ error: 'Sticker not found' }), {
+        status: 404,
+        headers: cors,
+      });
+    }
 
-  const list = (stickers.results || []).map((s) => ({
-    ...s,
-    owned: owned.has(s.id),
-  }));
+    const already = await env.DB.prepare(
+      'SELECT 1 FROM user_stickers WHERE user_id = ? AND sticker_id = ?'
+    )
+      .bind(user.id, stickerId)
+      .first();
+    if (already) {
+      return new Response(JSON.stringify({ error: 'Уже куплено' }), {
+        status: 400,
+        headers: cors,
+      });
+    }
 
-  return new Response(
-    JSON.stringify({ ok: true, stickers: list, coins }),
-    { headers: cors }
-  );
-}
+    if ((user.coins || 0) < sticker.price) {
+      return new Response(JSON.stringify({ error: 'Недостаточно монет' }), {
+        status: 400,
+        headers: cors,
+      });
+    }
 
-export async function handleBuy(request, env) {
-  await ensureStickers(env);
-  const telegramId = getTelegramId(request);
-  if (!telegramId) {
-    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-      status: 401,
+    await env.DB.prepare('UPDATE users SET coins = coins - ? WHERE id = ?')
+      .bind(sticker.price, user.id)
+      .run();
+    await env.DB.prepare(
+      'INSERT INTO user_stickers (user_id, sticker_id) VALUES (?, ?)'
+    )
+      .bind(user.id, stickerId)
+      .run();
+
+    const updated = await env.DB.prepare('SELECT coins FROM users WHERE id = ?')
+      .bind(user.id)
+      .first();
+
+    return new Response(
+      JSON.stringify({ ok: true, sticker, coins: updated.coins }),
+      { headers: cors }
+    );
+  } catch (err) {
+    return new Response(JSON.stringify({ error: err.message }), {
+      status: 500,
       headers: cors,
     });
   }
-
-  let body;
-  try {
-    body = await request.json();
-  } catch {
-    return new Response(JSON.stringify({ error: 'Bad JSON' }), {
-      status: 400,
-      headers: cors,
-    });
-  }
-
-  const stickerId = parseInt(body.stickerId, 10);
-  if (!stickerId) {
-    return new Response(JSON.stringify({ error: 'stickerId required' }), {
-      status: 400,
-      headers: cors,
-    });
-  }
-
-  const user = await env.DB.prepare(
-    'SELECT id, coins FROM users WHERE telegram_id = ?'
-  )
-    .bind(telegramId)
-    .first();
-  if (!user) {
-    return new Response(JSON.stringify({ error: 'User not found' }), {
-      status: 404,
-      headers: cors,
-    });
-  }
-
-  const sticker = await env.DB.prepare(
-    'SELECT id, name, price, emoji FROM stickers WHERE id = ?'
-  )
-    .bind(stickerId)
-    .first();
-  if (!sticker) {
-    return new Response(JSON.stringify({ error: 'Sticker not found' }), {
-      status: 404,
-      headers: cors,
-    });
-  }
-
-  const already = await env.DB.prepare(
-    'SELECT 1 FROM user_stickers WHERE user_id = ? AND sticker_id = ?'
-  )
-    .bind(user.id, stickerId)
-    .first();
-  if (already) {
-    return new Response(JSON.stringify({ error: 'Уже куплено' }), {
-      status: 400,
-      headers: cors,
-    });
-  }
-
-  if ((user.coins || 0) < sticker.price) {
-    return new Response(JSON.stringify({ error: 'Недостаточно монет' }), {
-      status: 400,
-      headers: cors,
-    });
-  }
-
-  await env.DB.prepare(
-    'UPDATE users SET coins = coins - ? WHERE id = ?'
-  )
-    .bind(sticker.price, user.id)
-    .run();
-
-  await env.DB.prepare(
-    'INSERT INTO user_stickers (user_id, sticker_id) VALUES (?, ?)'
-  )
-    .bind(user.id, stickerId)
-    .run();
-
-  const updated = await env.DB.prepare(
-    'SELECT coins FROM users WHERE id = ?'
-  )
-    .bind(user.id)
-    .first();
-
-  return new Response(
-    JSON.stringify({
-      ok: true,
-      sticker,
-      coins: updated.coins,
-    }),
-    { headers: cors }
-  );
 }
