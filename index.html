@@ -6,7 +6,7 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <title>Дурак Онлайн</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <link rel="stylesheet" href="styles.css?v=20261027h" />
+  <link rel="stylesheet" href="styles.css?v=20261027j" />
 </head>
 <body>
   <div id="app">
@@ -14,6 +14,7 @@
       <div class="loader"></div>
       <p>Загрузка...</p>
     </div>
+
     <div id="menu" class="screen hidden">
       <div class="top-bar">
         <div class="user-info" id="user-info-click">
@@ -29,38 +30,90 @@
           </div>
         </div>
       </div>
-      <div class="menu-buttons">
-        <div class="player-count-row">
-          <span>Игроков</span>
-          <div class="player-count-btns" id="player-count-btns">
-            <button type="button" data-count="2" class="active">2</button>
-            <button type="button" data-count="3">3</button>
-            <button type="button" data-count="4">4</button>
-          </div>
-        </div>
-        <button class="btn primary" id="btn-quick">Быстрая игра</button>
-        <button class="btn" id="btn-vs-bot">Игра с ботами</button>
-        <button class="btn" id="btn-online">Онлайн (поиск)</button>
-        <button class="btn" id="btn-friends">Друзья / Комната</button>
-        <button class="btn" id="btn-referral">Пригласить (+500)</button>
-        <button class="btn" id="btn-leaderboard">Доска почёта</button>
-        <button class="btn" id="btn-shop">Магазин</button>
-        <button class="btn" id="btn-quests">Квесты дня</button>
-        <button class="btn" id="btn-profile">Профиль</button>
-        <button class="btn" id="btn-tournament">Турниры</button>
-        <button class="btn" id="btn-settings">Настройки</button>
+
+      <div class="menu-hero">
+        <div class="menu-title">Дурак</div>
+        <div class="menu-sub">Онлайн</div>
       </div>
-      <div class="footer"><p class="version">Durack Online v0.5.1</p></div>
+
+      <div class="menu-buttons menu-main">
+        <button class="btn primary btn-lg" id="btn-play">Играть</button>
+        <button class="btn" id="btn-shop">Магазин</button>
+        <div class="menu-row-2">
+          <button class="btn btn-half" id="btn-leaderboard">Доска</button>
+          <button class="btn btn-half" id="btn-quests">Квесты</button>
+        </div>
+        <button class="btn btn-outline" id="btn-referral">Пригласить · +500</button>
+      </div>
+
+      <div class="menu-foot-links">
+        <button type="button" class="link-btn" id="btn-tournament">Турниры</button>
+        <button type="button" class="link-btn" id="btn-settings">Настройки</button>
+      </div>
+      <div class="footer"><p class="version">Durack Online v0.5.2</p></div>
     </div>
+
+    <!-- Подменю Играть -->
+    <div id="play-sheet" class="sheet-overlay hidden">
+      <div class="sheet">
+        <div class="sheet-handle"></div>
+        <h3 class="sheet-title">Играть</h3>
+        <button class="btn primary" id="btn-quick">Быстрая игра</button>
+        <button class="btn" id="btn-online">Онлайн (поиск)</button>
+        <button class="btn" id="btn-vs-bot">Игра с ботами</button>
+        <button class="btn" id="btn-friends">Друзья / Комната</button>
+        <button class="btn btn-ghost" id="btn-play-close">Закрыть</button>
+      </div>
+    </div>
+
+    <!-- Выбор числа ботов -->
+    <div id="bots-sheet" class="sheet-overlay hidden">
+      <div class="sheet">
+        <div class="sheet-handle"></div>
+        <h3 class="sheet-title">Сколько игроков?</h3>
+        <p class="sheet-sub">Ты + боты</p>
+        <div class="player-count-btns sheet-counts" id="player-count-btns">
+          <button type="button" data-count="2" class="active">2</button>
+          <button type="button" data-count="3">3</button>
+          <button type="button" data-count="4">4</button>
+        </div>
+        <button class="btn primary" id="btn-bots-start">Начать</button>
+        <button class="btn btn-ghost" id="btn-bots-close">Назад</button>
+      </div>
+    </div>
+
     <div id="leaderboard" class="screen hidden">
       <div class="header"><button class="btn-back" id="btn-back-lb">← Назад</button><h2>Доска почёта</h2></div>
       <div id="lb-list" class="list"></div>
     </div>
+
     <div id="shop" class="screen hidden">
       <div class="header"><button class="btn-back" id="btn-back-shop">← Назад</button><h2>Магазин</h2></div>
-      <p class="screen-sub">Стикеры · <b id="shop-coins">0</b> 🪙</p>
-      <div id="shop-list" class="shop-grid"></div>
+      <div class="shop-tabs" id="shop-tabs">
+        <button type="button" class="shop-tab active" data-tab="stickers">Стикеры</button>
+        <button type="button" class="shop-tab" data-tab="donate">Донат</button>
+        <button type="button" class="shop-tab" data-tab="cases">Кейсы</button>
+      </div>
+      <div id="shop-panel-stickers" class="shop-panel">
+        <p class="screen-sub">Баланс · <b id="shop-coins">0</b> 🪙</p>
+        <div id="shop-list" class="shop-grid"></div>
+      </div>
+      <div id="shop-panel-donate" class="shop-panel hidden">
+        <div class="stub-card">
+          <div class="stub-emoji">💰</div>
+          <h3>Донат</h3>
+          <p>Скоро — поддержка проекта за Stars / карту</p>
+        </div>
+      </div>
+      <div id="shop-panel-cases" class="shop-panel hidden">
+        <div class="stub-card">
+          <div class="stub-emoji">🎁</div>
+          <h3>Кейсы</h3>
+          <p>Скоро — случайные стикеры и монеты</p>
+        </div>
+      </div>
     </div>
+
     <div id="friends" class="screen hidden">
       <div class="header"><button class="btn-back" id="btn-back-friends">← Назад</button><h2>Комната</h2></div>
       <div class="friends-box">
@@ -75,6 +128,7 @@
         <button class="btn" id="btn-join-room">Войти по коду</button>
       </div>
     </div>
+
     <div id="referral" class="screen hidden">
       <div class="header"><button class="btn-back" id="btn-back-ref">← Назад</button><h2>Рефералка</h2></div>
       <div class="ref-card">
@@ -84,6 +138,7 @@
         <button class="btn" id="btn-copy-ref">Скопировать</button>
       </div>
     </div>
+
     <div id="settings" class="screen hidden">
       <div class="header"><button class="btn-back" id="btn-back-settings">← Назад</button><h2>Настройки</h2></div>
       <div class="settings-list">
@@ -91,20 +146,24 @@
         <label class="set-row"><span>📳 Вибрация</span><input type="checkbox" id="set-vibro" checked /></label>
       </div>
     </div>
+
     <div id="tournament" class="screen hidden">
       <div class="header"><button class="btn-back" id="btn-back-tournament">← Назад</button><h2>Турниры</h2></div>
-      <p class="screen-sub">Авто ~8 ч · приз 20 🪙 · 18 мин · сетка по очкам</p>
+      <p class="screen-sub">Авто ~8 ч · приз 20 🪙 · 18 мин</p>
       <div id="tournament-list" class="tour-list"></div>
     </div>
+
     <div id="quests" class="screen hidden">
       <div class="header"><button class="btn-back" id="btn-back-quests">← Назад</button><h2>Квесты дня</h2></div>
       <p class="screen-sub">Макс. ~95 🪙 / день</p>
       <div id="quests-list" class="quest-list"></div>
     </div>
+
     <div id="profile" class="screen hidden">
       <div class="header"><button class="btn-back" id="btn-back-profile">← Назад</button><h2>Профиль</h2></div>
       <div id="profile-box"></div>
     </div>
+
     <div id="game" class="screen hidden">
       <div class="game-top">
         <button class="btn-back" id="btn-leave">Выйти</button>
@@ -135,6 +194,7 @@
       </div>
     </div>
   </div>
+
   <script>
     setTimeout(function () {
       var loading = document.getElementById('loading');
@@ -145,15 +205,16 @@
       }
     }, 4000);
   </script>
-  <script src="durak.js?v=20261027h"></script>
-  <script src="drag-play.js?v=20261027h"></script>
-  <script src="app.js?v=20261027h"></script>
-  <script src="app-patch.js?v=20261027h"></script>
-  <script src="ui-fix.js?v=20261027h"></script>
-  <script src="profile-modal.js?v=20261027h"></script>
-  <script src="presence.js?v=20261027h"></script>
-  <script src="stage2.js?v=20261027h"></script>
-  <script src="stage3.js?v=20261027h"></script>
-  <script src="stage4.js?v=20261027h"></script>
+  <script src="durak.js?v=20261027j"></script>
+  <script src="drag-play.js?v=20261027j"></script>
+  <script src="app.js?v=20261027j"></script>
+  <script src="app-patch.js?v=20261027j"></script>
+  <script src="ui-fix.js?v=20261027j"></script>
+  <script src="menu-ui.js?v=20261027j"></script>
+  <script src="profile-modal.js?v=20261027j"></script>
+  <script src="presence.js?v=20261027j"></script>
+  <script src="stage2.js?v=20261027j"></script>
+  <script src="stage3.js?v=20261027j"></script>
+  <script src="stage4.js?v=20261027j"></script>
 </body>
 </html>
