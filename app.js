@@ -50,6 +50,8 @@ const screens = {
   shop: $('shop'),
   friends: $('friends'),
   referral: $('referral'),
+  settings: $('settings'),
+  tournament: $('tournament'),
   game: $('game'),
 };
 
@@ -73,6 +75,7 @@ function ensureAudio() {
 window.ensureAudio = ensureAudio;
 
 function playTone(freq, dur, type, vol) {
+  if (typeof window.durackSoundEnabled === 'function' && !window.durackSoundEnabled()) return;
   ensureAudio();
   if (!audioCtx) return;
   try {
@@ -211,12 +214,12 @@ function renderFromGame() {
     onAttack: function (card) {
       var res = game.attack(myId, card);
       if (!res.ok) flash(res.error);
-      else { sfxPlay(); renderFromGame(); }
+      else { sfxPlay(); if (typeof window.durackVibrate === 'function') window.durackVibrate(25); renderFromGame(); }
     },
     onDefend: function (idx, card) {
       var res = game.defend(myId, idx, card);
       if (!res.ok) flash(res.error);
-      else { sfxDefend(); renderFromGame(); }
+      else { sfxDefend(); if (typeof window.durackVibrate === 'function') window.durackVibrate(35); renderFromGame(); }
     },
   });
   startTimer(15);
@@ -441,6 +444,7 @@ function startVsBot() {
   game = new window.DurakGame(players);
   game.start();
   showScreen('game');
+  if (typeof window.refreshStickersBar === 'function') window.refreshStickersBar();
   renderFromGame();
 }
 
@@ -459,15 +463,16 @@ function startOnline() {
   var name = encodeURIComponent((currentUser && currentUser.first_name) || 'Игрок');
   var roomId = 'mm_' + pc + '_' + slot;
   showScreen('game');
+  if (typeof window.refreshStickersBar === 'function') window.refreshStickersBar();
   $('table-hint').classList.remove('hide');
-  $('table-hint').textContent = 'Поиск соперника...';
+  $('table-hint').textContent = 'Поиск соперника (' + pc + 'игр.)...';
   $('player-hand').innerHTML = '';
   $('opponents').innerHTML = '';
   $('table-cards').innerHTML = '';
   if (ws) try { ws.close(); } catch (e) {}
   ws = new WebSocket(WS_BASE + '/ws/' + roomId + '?userId=' + encodeURIComponent(myId) + '&username=' + name);
   ws.onopen = function () {
-    $('table-hint').textContent = 'Подключено...';
+    $('table-hint').textContent = 'Подключено, ждём игроков...';
     ws.send(JSON.stringify({ type: 'join', userId: myId, name: (currentUser && currentUser.first_name) || 'Игрок' }));
   };
   ws.onmessage = function (ev) {
@@ -475,7 +480,7 @@ function startOnline() {
       var msg = JSON.parse(ev.data);
       if (msg.type === 'welcome' || msg.type === 'player_joined') {
         var n = (msg.players && msg.players.length) || 1;
-        $('table-hint').textContent = 'В комнате: ' + n + '/2';
+        $('table-hint').textContent = 'В комнате: ' + n + '/' + pc;
       }
       if (msg.type === 'state' && msg.state) renderOnlineState(msg.state);
       if (msg.type === 'error') flash(msg.message);
@@ -497,11 +502,13 @@ function renderOnlineState(state) {
     onAttack: function (card) {
       if (!ws || ws.readyState !== 1) return;
       sfxPlay();
+      if (typeof window.durackVibrate === 'function') window.durackVibrate(25);
       ws.send(JSON.stringify({ type: 'attack', card: card }));
     },
     onDefend: function (idx, card) {
       if (!ws || ws.readyState !== 1) return;
       sfxDefend();
+      if (typeof window.durackVibrate === 'function') window.durackVibrate(35);
       ws.send(JSON.stringify({ type: 'defend', attackIndex: idx, card: card }));
     },
   });
@@ -632,10 +639,16 @@ function bind() {
     } else if (mode === 'online') { sfxBito(); wsSend('pass'); }
   });
 
-  ['btn-tournament', 'btn-settings'].forEach(function (id) {
-    var el = $(id);
-    if (el) el.addEventListener('click', function () { flash('Скоро'); });
+  if ($('btn-settings')) $('btn-settings').addEventListener('click', function () {
+    if (typeof window.openSettingsScreen === 'function') window.openSettingsScreen();
+    else showScreen('settings');
   });
+  if ($('btn-tournament')) $('btn-tournament').addEventListener('click', function () {
+    if (typeof window.openTournamentScreen === 'function') window.openTournamentScreen();
+    else showScreen('tournament');
+  });
+  if ($('btn-back-settings')) $('btn-back-settings').addEventListener('click', function () { showScreen('menu'); });
+  if ($('btn-back-tournament')) $('btn-back-tournament').addEventListener('click', function () { showScreen('menu'); });
 
   if ($('btn-shop')) $('btn-shop').addEventListener('click', function () {
     if (typeof window.openShopScreen === 'function') window.openShopScreen();
