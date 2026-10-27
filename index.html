@@ -7,7 +7,7 @@
   <meta http-equiv="Pragma" content="no-cache" />
   <title>Дурак Онлайн</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <link rel="stylesheet" href="styles.css?v=20261027b" />
+  <link rel="stylesheet" href="styles.css?v=20261027c" />
 </head>
 <body>
   <div id="app">
@@ -54,7 +54,7 @@
         <button class="btn" id="btn-tournament">Турниры</button>
         <button class="btn" id="btn-settings">Настройки</button>
       </div>
-      <div class="footer"><p class="version">Durack Online v0.3.2</p></div>
+      <div class="footer"><p class="version">Durack Online v0.4.0</p></div>
     </div>
 
     <div id="leaderboard" class="screen hidden">
@@ -109,6 +109,32 @@
       </div>
     </div>
 
+    <div id="settings" class="screen hidden">
+      <div class="header">
+        <button class="btn-back" id="btn-back-settings">← Назад</button>
+        <h2>Настройки</h2>
+      </div>
+      <div class="settings-list">
+        <label class="set-row">
+          <span>🔊 Звук</span>
+          <input type="checkbox" id="set-sound" checked />
+        </label>
+        <label class="set-row">
+          <span>📳 Вибрация</span>
+          <input type="checkbox" id="set-vibro" checked />
+        </label>
+        <p class="screen-sub" style="margin-top:16px">Настройки сохраняются на устройстве</p>
+      </div>
+    </div>
+
+    <div id="tournament" class="screen hidden">
+      <div class="header">
+        <button class="btn-back" id="btn-back-tournament">← Назад</button>
+        <h2>Турниры</h2>
+      </div>
+      <div id="tournament-list" class="tour-list"></div>
+    </div>
+
     <div id="game" class="screen hidden">
       <div class="game-top">
         <button class="btn-back" id="btn-leave">Выйти</button>
@@ -126,6 +152,7 @@
         </div>
       </div>
       <div class="opponents" id="opponents"></div>
+      <div id="stickers-bar" class="stickers-bar hidden"></div>
       <div class="table-area">
         <div class="table-cards" id="table-cards"></div>
         <p class="table-hint" id="table-hint">Ожидание хода...</p>
@@ -139,7 +166,6 @@
     </div>
   </div>
 
-  <!-- Аварийный выход из загрузки на телефоне без F5 -->
   <script>
     setTimeout(function () {
       var loading = document.getElementById('loading');
@@ -147,17 +173,15 @@
       if (loading && menu && !loading.classList.contains('hidden')) {
         loading.classList.add('hidden');
         menu.classList.remove('hidden');
-        if (!document.getElementById('user-name').textContent || document.getElementById('user-name').textContent === 'Игрок') {
-          /* leave defaults */
-        }
       }
     }, 4000);
   </script>
 
-  <script src="durak.js?v=20261027b"></script>
-  <script src="drag-play.js?v=20261027b"></script>
-  <script src="app.js?v=20261027b"></script>
-  <script src="presence.js?v=20261027b"></script>
-  <script src="stage2.js?v=20261027b"></script>
+  <script src="durak.js?v=20261027c"></script>
+  <script src="drag-play.js?v=20261027c"></script>
+  <script src="app.js?v=20261027c"></script>
+  <script src="presence.js?v=20261027c"></script>
+  <script src="stage2.js?v=20261027c"></script>
+  <script src="stage3.js?v=20261027c"></script>
 </body>
 </html>
