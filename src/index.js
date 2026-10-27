@@ -12,8 +12,10 @@ import {
   handleAdminCloseTournament,
   handleTournamentJoin,
   handleAdminCheck,
+  handleAdminAddPlayer,
+  createAutoTournament,
 } from './admin.js';
-import { handleProfile } from './profile.js';
+import { handleProfile, handlePublicProfile } from './profile.js';
 import { GameRoom } from './game-room.js';
 import { handleTelegramWebhook, handleSetWebhook } from './bot.js';
 
@@ -41,7 +43,7 @@ export default {
       const path = url.pathname;
 
       if (path === '/' && request.method === 'GET') {
-        return json({ name: 'Durack Online', version: '0.4.0', status: 'ok' });
+        return json({ name: 'Durack Online', version: '0.5.0', status: 'ok' });
       }
 
       if (path === '/telegram' && request.method === 'POST') {
@@ -59,6 +61,11 @@ export default {
       if (path === '/profile' && request.method === 'GET') {
         return handleProfile(request, env);
       }
+      // /profile/123456
+      if (path.startsWith('/profile/') && request.method === 'GET') {
+        const id = path.slice('/profile/'.length);
+        return handlePublicProfile(request, env, id);
+      }
       if (path === '/leaderboard' && request.method === 'GET') {
         return handleLeaderboard(request, env);
       }
@@ -75,7 +82,6 @@ export default {
         return handleBuy(request, env);
       }
 
-      // quests
       if (path === '/quests' && request.method === 'GET') {
         return handleQuestsList(request, env);
       }
@@ -86,7 +92,6 @@ export default {
         return handleQuestClaim(request, env);
       }
 
-      // tournaments
       if (path === '/tournaments' && request.method === 'GET') {
         return handleTournamentsList(request, env);
       }
@@ -102,6 +107,9 @@ export default {
       if (path === '/admin/tournament/close' && request.method === 'POST') {
         return handleAdminCloseTournament(request, env);
       }
+      if (path === '/admin/tournament/add' && request.method === 'POST') {
+        return handleAdminAddPlayer(request, env);
+      }
 
       if (path.startsWith('/ws/') && request.method === 'GET') {
         const roomId = path.slice(4);
@@ -115,6 +123,16 @@ export default {
     } catch (err) {
       console.error('Worker error:', err);
       return json({ error: err.message || 'Internal error' }, 500);
+    }
+  },
+
+  /** Cron: авто-турнир каждые ~8 часов */
+  async scheduled(event, env, ctx) {
+    try {
+      const res = await createAutoTournament(env);
+      console.log('auto tournament', res);
+    } catch (e) {
+      console.error('cron tournament', e);
     }
   },
 };

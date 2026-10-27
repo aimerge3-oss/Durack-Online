@@ -3,8 +3,6 @@ main = "src/index.js"
 compatibility_date = "2024-11-01"
 workers_dev = true
 
-# URL: https://durack-online.pozzistory666.workers.dev
-
 [[d1_databases]]
 binding = "DB"
 database_name = "durack-db"
@@ -18,8 +16,10 @@ class_name = "GameRoom"
 tag = "v1"
 new_sqlite_classes = ["GameRoom"]
 
+[triggers]
+# каждые 8 часов (в диапазоне 6–12)
+crons = ["0 */8 * * *"]
+
 [vars]
 REQUIRE_CHANNEL_SUB = "false"
-# Твой telegram_id через запятую (админ турниров)
-# ADMIN_IDS = "123456789"
 ADMIN_IDS = ""

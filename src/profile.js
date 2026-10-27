@@ -13,60 +13,83 @@ function getTelegramId(request) {
   return m ? parseInt(m[1], 10) : null;
 }
 
+async function buildProfile(env, telegramId, isSelf) {
+  const user = await env.DB.prepare(
+    'SELECT telegram_id, username, first_name, photo_url, coins, wins_random, created_at FROM users WHERE telegram_id = ?'
+  )
+    .bind(telegramId)
+    .first();
+
+  if (!user) return null;
+
+  let history = [];
+  let gamesTotal = 0;
+  try {
+    const rows = await env.DB.prepare(
+      'SELECT mode, result, coins_delta, created_at FROM game_history WHERE telegram_id = ? ORDER BY created_at DESC LIMIT 12'
+    )
+      .bind(telegramId)
+      .all();
+    history = rows.results || [];
+    const c = await env.DB.prepare(
+      'SELECT COUNT(*) as c FROM game_history WHERE telegram_id = ?'
+    )
+      .bind(telegramId)
+      .first();
+    gamesTotal = c.c || 0;
+  } catch (e) {}
+
+  // чужой профиль — без монет (приватность)
+  return {
+    telegram_id: user.telegram_id,
+    username: user.username,
+    first_name: user.first_name,
+    photo_url: user.photo_url,
+    coins: isSelf ? user.coins : null,
+    wins_random: user.wins_random || 0,
+    games_total: gamesTotal,
+    created_at: user.created_at,
+    history: isSelf ? history : history.map((h) => ({
+      mode: h.mode,
+      result: h.result,
+      created_at: h.created_at,
+    })),
+  };
+}
+
+/** GET /profile — свой */
 export async function handleProfile(request, env) {
   try {
     const telegramId = getTelegramId(request);
     if (!telegramId) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: cors });
     }
-
-    const user = await env.DB.prepare(
-      'SELECT telegram_id, username, first_name, photo_url, coins, wins_random, created_at FROM users WHERE telegram_id = ?'
-    )
-      .bind(telegramId)
-      .first();
-
+    const user = await buildProfile(env, telegramId, true);
     if (!user) {
       return new Response(JSON.stringify({ error: 'Not found' }), { status: 404, headers: cors });
     }
+    return new Response(JSON.stringify({ ok: true, user, history: user.history }), { headers: cors });
+  } catch (err) {
+    return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: cors });
+  }
+}
 
-    let history = [];
-    try {
-      const rows = await env.DB.prepare(
-        'SELECT mode, result, coins_delta, created_at FROM game_history WHERE telegram_id = ? ORDER BY created_at DESC LIMIT 20'
-      )
-        .bind(telegramId)
-        .all();
-      history = rows.results || [];
-    } catch (e) {}
-
-    let gamesTotal = history.length;
-    try {
-      const c = await env.DB.prepare(
-        'SELECT COUNT(*) as c FROM game_history WHERE telegram_id = ?'
-      )
-        .bind(telegramId)
-        .first();
-      gamesTotal = c.c || 0;
-    } catch (e) {}
-
-    return new Response(
-      JSON.stringify({
-        ok: true,
-        user: {
-          telegram_id: user.telegram_id,
-          username: user.username,
-          first_name: user.first_name,
-          photo_url: user.photo_url,
-          coins: user.coins,
-          wins_random: user.wins_random,
-          games_total: gamesTotal,
-          created_at: user.created_at,
-        },
-        history,
-      }),
-      { headers: cors }
-    );
+/** GET /profile/:telegramId — публичный профиль */
+export async function handlePublicProfile(request, env, targetId) {
+  try {
+    const me = getTelegramId(request);
+    const tid = parseInt(targetId, 10);
+    if (!tid || isNaN(tid)) {
+      return new Response(JSON.stringify({ error: 'bad id' }), { status: 400, headers: cors });
+    }
+    const isSelf = me && me === tid;
+    const user = await buildProfile(env, tid, !!isSelf);
+    if (!user) {
+      return new Response(JSON.stringify({ error: 'Not found' }), { status: 404, headers: cors });
+    }
+    return new Response(JSON.stringify({ ok: true, user, history: user.history || [] }), {
+      headers: cors,
+    });
   } catch (err) {
     return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: cors });
   }
