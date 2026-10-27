@@ -7,7 +7,7 @@
   <meta http-equiv="Pragma" content="no-cache" />
   <title>Дурак Онлайн</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <link rel="stylesheet" href="styles.css?v=20261027c" />
+  <link rel="stylesheet" href="styles.css?v=20261027d" />
 </head>
 <body>
   <div id="app">
@@ -27,7 +27,7 @@
             <span id="user-coins">0</span>
             <span class="coin-icon">🪙</span>
           </div>
-          <div class="online-badge" id="online-badge" title="Сейчас в сети">
+          <div class="online-badge" id="online-badge">
             <span class="online-dot"></span>
             <span id="online-count">0</span>
             <span class="online-label">онлайн</span>
@@ -51,10 +51,12 @@
         <button class="btn" id="btn-referral">Пригласить (+500)</button>
         <button class="btn" id="btn-leaderboard">Доска почёта</button>
         <button class="btn" id="btn-shop">Магазин</button>
+        <button class="btn" id="btn-quests">Квесты дня</button>
+        <button class="btn" id="btn-profile">Профиль</button>
         <button class="btn" id="btn-tournament">Турниры</button>
         <button class="btn" id="btn-settings">Настройки</button>
       </div>
-      <div class="footer"><p class="version">Durack Online v0.4.0</p></div>
+      <div class="footer"><p class="version">Durack Online v0.4.1</p></div>
     </div>
 
     <div id="leaderboard" class="screen hidden">
@@ -70,7 +72,7 @@
         <button class="btn-back" id="btn-back-shop">← Назад</button>
         <h2>Магазин</h2>
       </div>
-      <p class="screen-sub">Стикеры за монеты · у вас: <b id="shop-coins">0</b> 🪙</p>
+      <p class="screen-sub">Стикеры · <b id="shop-coins">0</b> 🪙</p>
       <div id="shop-list" class="shop-grid"></div>
     </div>
 
@@ -79,18 +81,16 @@
         <button class="btn-back" id="btn-back-friends">← Назад</button>
         <h2>Комната</h2>
       </div>
-      <p class="screen-sub">Создай комнату или войди по коду</p>
       <div class="friends-box">
         <button class="btn primary" id="btn-create-room">Создать комнату</button>
         <div class="room-code-row hidden" id="room-created-row">
-          <span>Код:</span>
           <b id="room-code-display">----</b>
           <button class="btn btn-sm" id="btn-copy-room">Копировать</button>
           <button class="btn btn-sm primary" id="btn-share-room">Поделиться</button>
-          <button class="btn primary" id="btn-enter-created">Войти в игру</button>
+          <button class="btn primary" id="btn-enter-created">Войти</button>
         </div>
         <div class="divider">или</div>
-        <input class="input" id="room-code-input" placeholder="Код комнаты" maxlength="8" />
+        <input class="input" id="room-code-input" placeholder="Код" maxlength="8" />
         <button class="btn" id="btn-join-room">Войти по коду</button>
       </div>
     </div>
@@ -102,10 +102,10 @@
       </div>
       <div class="ref-card">
         <div class="ref-bonus">+500 🪙</div>
-        <p>За каждого друга, который откроет игру по твоей ссылке</p>
+        <p>За друга по ссылке</p>
         <div class="ref-link-box" id="ref-link-text">...</div>
-        <button class="btn primary" id="btn-share-ref">Поделиться в Telegram</button>
-        <button class="btn" id="btn-copy-ref">Скопировать ссылку</button>
+        <button class="btn primary" id="btn-share-ref">Поделиться</button>
+        <button class="btn" id="btn-copy-ref">Скопировать</button>
       </div>
     </div>
 
@@ -115,15 +115,8 @@
         <h2>Настройки</h2>
       </div>
       <div class="settings-list">
-        <label class="set-row">
-          <span>🔊 Звук</span>
-          <input type="checkbox" id="set-sound" checked />
-        </label>
-        <label class="set-row">
-          <span>📳 Вибрация</span>
-          <input type="checkbox" id="set-vibro" checked />
-        </label>
-        <p class="screen-sub" style="margin-top:16px">Настройки сохраняются на устройстве</p>
+        <label class="set-row"><span>🔊 Звук</span><input type="checkbox" id="set-sound" checked /></label>
+        <label class="set-row"><span>📳 Вибрация</span><input type="checkbox" id="set-vibro" checked /></label>
       </div>
     </div>
 
@@ -133,6 +126,23 @@
         <h2>Турниры</h2>
       </div>
       <div id="tournament-list" class="tour-list"></div>
+    </div>
+
+    <div id="quests" class="screen hidden">
+      <div class="header">
+        <button class="btn-back" id="btn-back-quests">← Назад</button>
+        <h2>Квесты дня</h2>
+      </div>
+      <p class="screen-sub">Обновляются каждый день · макс. ~95 🪙</p>
+      <div id="quests-list" class="quest-list"></div>
+    </div>
+
+    <div id="profile" class="screen hidden">
+      <div class="header">
+        <button class="btn-back" id="btn-back-profile">← Назад</button>
+        <h2>Профиль</h2>
+      </div>
+      <div id="profile-box"></div>
     </div>
 
     <div id="game" class="screen hidden">
@@ -155,7 +165,7 @@
       <div id="stickers-bar" class="stickers-bar hidden"></div>
       <div class="table-area">
         <div class="table-cards" id="table-cards"></div>
-        <p class="table-hint" id="table-hint">Ожидание хода...</p>
+        <p class="table-hint" id="table-hint">Ожидание...</p>
       </div>
       <div class="hand-area"><div class="hand" id="player-hand"></div></div>
       <div class="actions" id="actions">
@@ -177,11 +187,12 @@
     }, 4000);
   </script>
 
-  <script src="durak.js?v=20261027c"></script>
-  <script src="drag-play.js?v=20261027c"></script>
-  <script src="app.js?v=20261027c"></script>
-  <script src="presence.js?v=20261027c"></script>
-  <script src="stage2.js?v=20261027c"></script>
-  <script src="stage3.js?v=20261027c"></script>
+  <script src="durak.js?v=20261027d"></script>
+  <script src="drag-play.js?v=20261027d"></script>
+  <script src="app.js?v=20261027d"></script>
+  <script src="presence.js?v=20261027d"></script>
+  <script src="stage2.js?v=20261027d"></script>
+  <script src="stage3.js?v=20261027d"></script>
+  <script src="stage4.js?v=20261027d"></script>
 </body>
 </html>
