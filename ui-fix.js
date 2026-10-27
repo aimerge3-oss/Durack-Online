@@ -1,4 +1,4 @@
-/** UI: leaderboard rows open profile modal + drop zone expand helper */
+/** UI: leaderboard profile + trump force + hand classes */
 (function () {
   var API = 'https://durack-online.pozzistory666.workers.dev';
 
@@ -13,7 +13,6 @@
     var list = $('lb-list');
     if (!list) return;
     list.innerHTML = '<p style="opacity:.6;padding:8px">...</p>';
-
     fetch(API + '/leaderboard')
       .then(function (r) { return r.json(); })
       .then(function (data) {
@@ -49,6 +48,28 @@
       });
   }
 
+  function forceTrump() {
+    var face = $('trump-card-face');
+    if (!face) return;
+    face.style.cssText =
+      'position:absolute;left:0;top:50%;width:52px;height:74px;margin-top:-37px;' +
+      'background:#fff;border-radius:7px;box-shadow:0 2px 10px rgba(0,0,0,.5);' +
+      'display:flex!important;visibility:visible;opacity:1;flex-direction:column;' +
+      'align-items:center;justify-content:center;font-weight:700;z-index:1;' +
+      'transform:rotate(-18deg);pointer-events:none;';
+    if (face.classList.contains('red')) face.style.color = '#c62828';
+    else face.style.color = '#212121';
+  }
+
+  function fixHandClasses() {
+    var hand = $('player-hand');
+    if (!hand) return;
+    var n = hand.querySelectorAll('.card').length;
+    hand.classList.remove('many', 'crowded');
+    if (n >= 10) hand.classList.add('crowded');
+    else if (n >= 7) hand.classList.add('many');
+  }
+
   function bind() {
     var btn = $('btn-leaderboard');
     if (btn) {
@@ -65,7 +86,6 @@
     if ($('btn-back-lb')) {
       $('btn-back-lb').addEventListener('click', function () { show('menu'); });
     }
-
     var list = $('lb-list');
     if (list && !list.__profileClick) {
       list.__profileClick = true;
@@ -80,26 +100,24 @@
     }
   }
 
-  // Expand drop targets after each render: larger hit area
+  setInterval(function () {
+    forceTrump();
+    fixHandClasses();
+  }, 400);
+
   var dropObs = new MutationObserver(function () {
     document.querySelectorAll('.table-pair.uncovered').forEach(function (pair) {
       pair.style.minWidth = '72px';
       pair.style.minHeight = '96px';
-      pair.style.padding = '8px';
-      pair.style.margin = '4px';
     });
+    forceTrump();
+    fixHandClasses();
   });
   setTimeout(function () {
     var table = $('table-cards');
     if (table) dropObs.observe(table, { childList: true, subtree: true });
-  }, 800);
-
-  setInterval(function () {
-    var face = $('trump-card-face');
-    if (face && face.innerHTML && face.innerHTML.trim()) {
-      face.style.display = 'flex';
-      face.style.visibility = 'visible';
-    }
+    var hand = $('player-hand');
+    if (hand) dropObs.observe(hand, { childList: true });
   }, 600);
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bind);
