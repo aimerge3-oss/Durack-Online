@@ -4,10 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
-  <meta http-equiv="Pragma" content="no-cache" />
   <title>Дурак Онлайн</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <link rel="stylesheet" href="styles.css?v=20261027d" />
+  <link rel="stylesheet" href="styles.css?v=20261027e" />
 </head>
 <body>
   <div id="app">
@@ -15,7 +14,6 @@
       <div class="loader"></div>
       <p>Загрузка...</p>
     </div>
-
     <div id="menu" class="screen hidden">
       <div class="top-bar">
         <div class="user-info">
@@ -23,10 +21,7 @@
           <span id="user-name">Игрок</span>
         </div>
         <div class="top-right">
-          <div class="coins">
-            <span id="user-coins">0</span>
-            <span class="coin-icon">🪙</span>
-          </div>
+          <div class="coins"><span id="user-coins">0</span> 🪙</div>
           <div class="online-badge" id="online-badge">
             <span class="online-dot"></span>
             <span id="online-count">0</span>
@@ -34,7 +29,6 @@
           </div>
         </div>
       </div>
-
       <div class="menu-buttons">
         <div class="player-count-row">
           <span>Игроков</span>
@@ -58,103 +52,65 @@
       </div>
       <div class="footer"><p class="version">Durack Online v0.4.1</p></div>
     </div>
-
     <div id="leaderboard" class="screen hidden">
-      <div class="header">
-        <button class="btn-back" id="btn-back-lb">← Назад</button>
-        <h2>Доска почёта</h2>
-      </div>
+      <div class="header"><button class="btn-back" id="btn-back-lb">← Назад</button><h2>Доска почёта</h2></div>
       <div id="lb-list" class="list"></div>
     </div>
-
     <div id="shop" class="screen hidden">
-      <div class="header">
-        <button class="btn-back" id="btn-back-shop">← Назад</button>
-        <h2>Магазин</h2>
-      </div>
+      <div class="header"><button class="btn-back" id="btn-back-shop">← Назад</button><h2>Магазин</h2></div>
       <p class="screen-sub">Стикеры · <b id="shop-coins">0</b> 🪙</p>
       <div id="shop-list" class="shop-grid"></div>
     </div>
-
     <div id="friends" class="screen hidden">
-      <div class="header">
-        <button class="btn-back" id="btn-back-friends">← Назад</button>
-        <h2>Комната</h2>
-      </div>
+      <div class="header"><button class="btn-back" id="btn-back-friends">← Назад</button><h2>Комната</h2></div>
       <div class="friends-box">
         <button class="btn primary" id="btn-create-room">Создать комнату</button>
         <div class="room-code-row hidden" id="room-created-row">
           <b id="room-code-display">----</b>
-          <button class="btn btn-sm" id="btn-copy-room">Копировать</button>
-          <button class="btn btn-sm primary" id="btn-share-room">Поделиться</button>
+          <button class="btn btn-sm" id="btn-copy-room">Копи</button>
+          <button class="btn btn-sm primary" id="btn-share-room">Share</button>
           <button class="btn primary" id="btn-enter-created">Войти</button>
         </div>
-        <div class="divider">или</div>
         <input class="input" id="room-code-input" placeholder="Код" maxlength="8" />
         <button class="btn" id="btn-join-room">Войти по коду</button>
       </div>
     </div>
-
     <div id="referral" class="screen hidden">
-      <div class="header">
-        <button class="btn-back" id="btn-back-ref">← Назад</button>
-        <h2>Рефералка</h2>
-      </div>
+      <div class="header"><button class="btn-back" id="btn-back-ref">← Назад</button><h2>Рефералка</h2></div>
       <div class="ref-card">
         <div class="ref-bonus">+500 🪙</div>
-        <p>За друга по ссылке</p>
         <div class="ref-link-box" id="ref-link-text">...</div>
         <button class="btn primary" id="btn-share-ref">Поделиться</button>
         <button class="btn" id="btn-copy-ref">Скопировать</button>
       </div>
     </div>
-
     <div id="settings" class="screen hidden">
-      <div class="header">
-        <button class="btn-back" id="btn-back-settings">← Назад</button>
-        <h2>Настройки</h2>
-      </div>
+      <div class="header"><button class="btn-back" id="btn-back-settings">← Назад</button><h2>Настройки</h2></div>
       <div class="settings-list">
         <label class="set-row"><span>🔊 Звук</span><input type="checkbox" id="set-sound" checked /></label>
         <label class="set-row"><span>📳 Вибрация</span><input type="checkbox" id="set-vibro" checked /></label>
       </div>
     </div>
-
     <div id="tournament" class="screen hidden">
-      <div class="header">
-        <button class="btn-back" id="btn-back-tournament">← Назад</button>
-        <h2>Турниры</h2>
-      </div>
+      <div class="header"><button class="btn-back" id="btn-back-tournament">← Назад</button><h2>Турниры</h2></div>
       <div id="tournament-list" class="tour-list"></div>
     </div>
-
     <div id="quests" class="screen hidden">
-      <div class="header">
-        <button class="btn-back" id="btn-back-quests">← Назад</button>
-        <h2>Квесты дня</h2>
-      </div>
-      <p class="screen-sub">Обновляются каждый день · макс. ~95 🪙</p>
+      <div class="header"><button class="btn-back" id="btn-back-quests">← Назад</button><h2>Квесты дня</h2></div>
+      <p class="screen-sub">Макс. ~95 🪙 / день</p>
       <div id="quests-list" class="quest-list"></div>
     </div>
-
     <div id="profile" class="screen hidden">
-      <div class="header">
-        <button class="btn-back" id="btn-back-profile">← Назад</button>
-        <h2>Профиль</h2>
-      </div>
+      <div class="header"><button class="btn-back" id="btn-back-profile">← Назад</button><h2>Профиль</h2></div>
       <div id="profile-box"></div>
     </div>
-
     <div id="game" class="screen hidden">
       <div class="game-top">
         <button class="btn-back" id="btn-leave">Выйти</button>
         <div class="timer-wrap"><span id="timer">15</span></div>
-        <div class="deck-info" id="deck-info">
-          <div class="trump-label">
-            <span class="trump-label-text">Козырь</span>
-            <span class="trump-suit-big" id="trump-suit-big">♠</span>
-          </div>
-          <div class="trump-pile" id="trump-pile">
+        <div class="deck-info">
+          <div class="trump-label"><span class="trump-label-text">Козырь</span><span class="trump-suit-big" id="trump-suit-big">♠</span></div>
+          <div class="trump-pile">
             <div class="trump-card-face" id="trump-card-face"></div>
             <div class="deck-stack" id="deck-stack"></div>
             <span class="deck-count-badge" id="deck-count">24</span>
@@ -165,17 +121,16 @@
       <div id="stickers-bar" class="stickers-bar hidden"></div>
       <div class="table-area">
         <div class="table-cards" id="table-cards"></div>
-        <p class="table-hint" id="table-hint">Ожидание...</p>
+        <p class="table-hint" id="table-hint">...</p>
       </div>
       <div class="hand-area"><div class="hand" id="player-hand"></div></div>
-      <div class="actions" id="actions">
+      <div class="actions">
         <button class="btn action-btn" id="btn-take">Беру</button>
         <button class="btn action-btn primary" id="btn-done">Бито</button>
         <button class="btn action-btn" id="btn-pass">Пас</button>
       </div>
     </div>
   </div>
-
   <script>
     setTimeout(function () {
       var loading = document.getElementById('loading');
@@ -186,13 +141,13 @@
       }
     }, 4000);
   </script>
-
-  <script src="durak.js?v=20261027d"></script>
-  <script src="drag-play.js?v=20261027d"></script>
-  <script src="app.js?v=20261027d"></script>
-  <script src="presence.js?v=20261027d"></script>
-  <script src="stage2.js?v=20261027d"></script>
-  <script src="stage3.js?v=20261027d"></script>
-  <script src="stage4.js?v=20261027d"></script>
+  <script src="durak.js?v=20261027e"></script>
+  <script src="drag-play.js?v=20261027e"></script>
+  <script src="app.js?v=20261027e"></script>
+  <script src="app-patch.js?v=20261027e"></script>
+  <script src="presence.js?v=20261027e"></script>
+  <script src="stage2.js?v=20261027e"></script>
+  <script src="stage3.js?v=20261027e"></script>
+  <script src="stage4.js?v=20261027e"></script>
 </body>
 </html>
