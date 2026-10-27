@@ -524,7 +524,7 @@ async function authenticate() {
       renderUser(); showScreen('menu'); return;
     }
     var controller = new AbortController();
-    var timeout = setTimeout(function () { controller.abort(); }, 8000);
+    var timeout = setTimeout(function () { controller.abort(); }, 5000);
     var res = await fetch(API_BASE + '/auth', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -554,7 +554,15 @@ async function authenticate() {
   } catch (err) {
     console.error(err);
     currentUser = { telegram_id: 0, first_name: 'Игрок', username: 'guest', coins: 0, wins_random: 0, photo_url: '' };
-    myId = 'player'; renderUser(); showScreen('menu');
+    try {
+      if (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) {
+        currentUser.telegram_id = tg.initDataUnsafe.user.id || 0;
+        currentUser.first_name = tg.initDataUnsafe.user.first_name || 'Игрок';
+        myId = String(currentUser.telegram_id || 'player');
+        authToken = myId; window.__authToken = myId;
+      }
+    } catch (e) {}
+    renderUser(); showScreen('menu');
   }
 }
 
@@ -649,5 +657,21 @@ function bind() {
   document.body.addEventListener('click', ensureAudio, { once: true });
 }
 
-bind();
-authenticate();
+try { bind(); } catch (e) { console.error('bind error', e); }
+try { authenticate(); } catch (e) {
+  console.error('auth error', e);
+  try { showScreen('menu'); } catch (e2) {}
+}
+setTimeout(function () {
+  try {
+    var loading = document.getElementById('loading');
+    if (loading && !loading.classList.contains('hidden')) {
+      if (typeof showScreen === 'function') showScreen('menu');
+      else {
+        loading.classList.add('hidden');
+        var menu = document.getElementById('menu');
+        if (menu) menu.classList.remove('hidden');
+      }
+    }
+  } catch (e) {}
+}, 3500);
