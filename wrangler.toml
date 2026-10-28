@@ -20,5 +20,7 @@ new_sqlite_classes = ["GameRoom"]
 crons = ["0 */8 * * *"]
 
 [vars]
-REQUIRE_CHANNEL_SUB = "false"
+REQUIRE_CHANNEL_SUB = "true"
+CHANNEL_ID = "-1004333834801"
+CHANNEL_LINK = "https://t.me/Durack_0nline"
 ADMIN_IDS = "530835491"
