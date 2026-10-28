@@ -69,6 +69,22 @@ export async function validateTelegramInitData(initData, botToken) {
   }
 }
 
+function parseReferrerId(startParam, bodyReferrerId) {
+  if (bodyReferrerId) {
+    const n = parseInt(bodyReferrerId, 10);
+    if (n && !isNaN(n)) return n;
+  }
+  if (!startParam) return null;
+  const s = String(startParam).trim();
+  // ref_12345 или просто 12345
+  if (s.startsWith('ref_')) {
+    const n = parseInt(s.slice(4), 10);
+    return n && !isNaN(n) ? n : null;
+  }
+  const n = parseInt(s.replace(/\D/g, ''), 10);
+  return n && !isNaN(n) ? n : null;
+}
+
 export async function handleAuth(request, env) {
   try {
     const body = await request.json();
@@ -84,9 +100,8 @@ export async function handleAuth(request, env) {
 
     const validation = await validateTelegramInitData(initData, botToken);
     if (!validation.valid) {
-      // дев-режим: если передали user вручную (только если нет hash)
       if (!initData && body.user && body.user.id) {
-        // continue below with body.user
+        // demo path
       } else {
         return new Response(JSON.stringify({ error: validation.error || 'Invalid initData' }), {
           status: 401,
@@ -104,12 +119,9 @@ export async function handleAuth(request, env) {
     }
 
     let referralBonus = 0;
-    let referrerId = null;
     const startParam = validation.startParam || body.startParam || null;
-    if (startParam && String(startParam).startsWith('ref_')) {
-      const rid = parseInt(String(startParam).slice(4), 10);
-      if (rid && rid !== tgUser.id) referrerId = rid;
-    }
+    let referrerId = parseReferrerId(startParam, body.referrerId);
+    if (referrerId && referrerId === tgUser.id) referrerId = null;
 
     let user = await env.DB.prepare('SELECT * FROM users WHERE telegram_id = ?')
       .bind(tgUser.id)
@@ -137,15 +149,25 @@ export async function handleAuth(request, env) {
 
       if (referrerId) {
         try {
-          await env.DB.prepare(
-            'UPDATE users SET coins = coins + 500 WHERE telegram_id = ?'
+          const refUser = await env.DB.prepare(
+            'SELECT id, coins FROM users WHERE telegram_id = ?'
           )
             .bind(referrerId)
-            .run();
-          referralBonus = 500;
-        } catch (e) {}
+            .first();
+          if (refUser) {
+            await env.DB.prepare(
+              'UPDATE users SET coins = coins + 500 WHERE telegram_id = ?'
+            )
+              .bind(referrerId)
+              .run();
+            referralBonus = 500;
+          }
+        } catch (e) {
+          console.error('referral', e);
+        }
       }
     } else {
+      // если раньше без рефера и пришёл по ссылке — не начисляем повторно
       await env.DB.prepare(`
         UPDATE users SET username = ?, first_name = ?, last_name = ?, photo_url = ?,
           updated_at = CURRENT_TIMESTAMP WHERE telegram_id = ?

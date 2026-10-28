@@ -1,5 +1,5 @@
 /**
- * Stage 2: shop, referral, friends
+ * Stage 2: shop, referral, friends (clear room UX)
  */
 (function () {
   var API = 'https://durack-online.pozzistory666.workers.dev';
@@ -36,14 +36,7 @@
   }
 
   function show(name) {
-    if (typeof window.showScreen === 'function') {
-      window.showScreen(name);
-      return;
-    }
-    ['loading', 'menu', 'leaderboard', 'shop', 'friends', 'referral', 'game'].forEach(function (n) {
-      var el = $(n);
-      if (el) el.classList.toggle('hidden', n !== name);
-    });
+    if (typeof window.showScreen === 'function') window.showScreen(name);
   }
 
   function toast(msg) {
@@ -56,10 +49,10 @@
     return t && t !== '0' ? t : '0';
   }
 
-  // startapp — параметр для Mini App (рефералка)
+  // Важно: startapp=ref_ID — так Telegram передаёт start_param
   function refLink() {
     var id = myTelegramId();
-    return 'https://t.me/' + BOT + '?startapp=' + id;
+    return 'https://t.me/' + BOT + '?startapp=ref_' + id;
   }
 
   function setCoins(n) {
@@ -74,11 +67,11 @@
     var root = $('shop-list');
     if (!root) return;
     root.innerHTML = '';
-    list.forEach(function (s) {
+    (list || []).forEach(function (s) {
       var card = document.createElement('div');
       card.className = 'shop-item' + (s.owned ? ' owned' : '');
       card.innerHTML =
-        '<div class="shop-emoji">' + (s.emoji || '🃏') + '</div>' +
+        '<div style="font-size:32px">' + (s.emoji || '🃏') + '</div>' +
         '<div class="shop-name">' + s.name + '</div>' +
         '<div class="shop-desc">' + (s.description || '') + '</div>' +
         (s.owned
@@ -105,7 +98,6 @@
           if (el) coins = parseInt(el.textContent, 10) || 0;
         } catch (e) {}
         renderShopList(FALLBACK_STICKERS, coins);
-        toast('Магазин: сервер недоступен, показан каталог');
       });
   }
   window.openShopScreen = openShop;
@@ -161,6 +153,8 @@
     privateRoomCode = null;
     var row = $('room-created-row');
     if (row) row.classList.add('hidden');
+    var input = $('room-code-input');
+    if (input) input.value = '';
   }
   window.openFriendsScreen = openFriends;
 
@@ -170,18 +164,23 @@
     if (row) row.classList.remove('hidden');
     var disp = $('room-code-display');
     if (disp) disp.textContent = privateRoomCode;
+    toast('Код комнаты: ' + privateRoomCode + '\nОтправь другу и нажми «Войти в свою комнату»');
   }
 
   function enterPrivateRoom(code) {
     code = String(code || '').trim().toUpperCase();
-    if (!code || code.length < 3) { toast('Введи код'); return; }
-    if (typeof window.startOnlineRoom === 'function') window.startOnlineRoom('priv_' + code);
-    else toast('Онлайн не готов');
+    if (!code || code.length < 3) { toast('Введи код комнаты'); return; }
+    if (typeof window.startOnlineRoom === 'function') {
+      window.startOnlineRoom('priv_' + code, {
+        needPlayers: 2,
+        hint: 'Комната ' + code + ' · ждём друга...',
+      });
+    } else toast('Онлайн не готов');
   }
 
   function shareRoom() {
     if (!privateRoomCode) return;
-    var text = 'Заходи в комнату Дурака: ' + privateRoomCode;
+    var text = 'Заходи в Дурак! Код комнаты: ' + privateRoomCode;
     if (window.Telegram && Telegram.WebApp && Telegram.WebApp.openTelegramLink) {
       Telegram.WebApp.openTelegramLink(
         'https://t.me/share/url?url=' + encodeURIComponent('https://t.me/' + BOT) +
@@ -197,6 +196,15 @@
         if (btn) buySticker(parseInt(btn.getAttribute('data-id'), 10));
       });
     }
+    if ($('btn-shop')) {
+      $('btn-shop').addEventListener('click', function () { openShop(); });
+    }
+    if ($('btn-referral')) {
+      $('btn-referral').addEventListener('click', function () { openReferral(); });
+    }
+    if ($('btn-friends')) {
+      $('btn-friends').addEventListener('click', function () { openFriends(); });
+    }
     if ($('btn-share-ref')) $('btn-share-ref').onclick = shareRef;
     if ($('btn-copy-ref')) $('btn-copy-ref').onclick = function () { copyText(refLink()); };
     if ($('btn-create-room')) $('btn-create-room').onclick = createRoom;
@@ -209,8 +217,12 @@
         enterPrivateRoom(input && input.value);
       };
     }
+    if ($('btn-back-friends')) $('btn-back-friends').onclick = function () { show('menu'); };
+    if ($('btn-back-ref')) $('btn-back-ref').onclick = function () { show('menu'); };
+    if ($('btn-back-shop')) $('btn-back-shop').onclick = function () { show('menu'); };
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bind);
   else bind();
+  setTimeout(bind, 500);
 })();
