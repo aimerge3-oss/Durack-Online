@@ -6,7 +6,7 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <title>Дурак Онлайн</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <link rel="stylesheet" href="styles.css?v=20261027k" />
+  <link rel="stylesheet" href="styles.css?v=20261028a" />
 </head>
 <body>
   <div id="app">
@@ -39,19 +39,21 @@
         <button type="button" class="link-btn" id="btn-tournament">Турниры</button>
         <button type="button" class="link-btn" id="btn-settings">Настройки</button>
       </div>
-      <div class="footer"><p class="version">Durack Online v0.5.3</p></div>
+      <div class="footer"><p class="version">Durack Online v0.5.4</p></div>
     </div>
+
     <div id="play-sheet" class="sheet-overlay hidden">
       <div class="sheet">
         <div class="sheet-handle"></div>
         <h3 class="sheet-title">Играть</h3>
-        <button class="btn primary" id="btn-quick">Быстрая игра</button>
-        <button class="btn" id="btn-online">Онлайн (поиск)</button>
+        <button class="btn primary" id="btn-quick">Быстрая (1на1 онлайн)</button>
+        <button class="btn" id="btn-online">Поиск соперника</button>
         <button class="btn" id="btn-vs-bot">Игра с ботами</button>
-        <button class="btn" id="btn-friends">Друзья / Комната</button>
+        <button class="btn" id="btn-friends">Комната с другом</button>
         <button class="btn btn-ghost" id="btn-play-close">Закрыть</button>
       </div>
     </div>
+
     <div id="bots-sheet" class="sheet-overlay hidden">
       <div class="sheet">
         <div class="sheet-handle"></div>
@@ -66,10 +68,12 @@
         <button class="btn btn-ghost" id="btn-bots-close">Назад</button>
       </div>
     </div>
+
     <div id="leaderboard" class="screen hidden">
       <div class="header"><button class="btn-back" id="btn-back-lb">← Назад</button><h2>Доска почёта</h2></div>
       <div id="lb-list" class="list"></div>
     </div>
+
     <div id="shop" class="screen hidden">
       <div class="header"><button class="btn-back" id="btn-back-shop">← Назад</button><h2>Магазин</h2></div>
       <div class="shop-tabs" id="shop-tabs">
@@ -84,28 +88,36 @@
       <div id="shop-panel-donate" class="shop-panel hidden"><div class="stub-card"><div class="stub-emoji">💰</div><h3>Донат</h3><p>Скоро</p></div></div>
       <div id="shop-panel-cases" class="shop-panel hidden"><div class="stub-card"><div class="stub-emoji">🎁</div><h3>Кейсы</h3><p>Скоро</p></div></div>
     </div>
+
     <div id="friends" class="screen hidden">
-      <div class="header"><button class="btn-back" id="btn-back-friends">← Назад</button><h2>Комната</h2></div>
+      <div class="header"><button class="btn-back" id="btn-back-friends">← Назад</button><h2>Комната с другом</h2></div>
       <div class="friends-box">
-        <button class="btn primary" id="btn-create-room">Создать</button>
+        <p class="screen-sub" style="text-align:center">1) Создай код · 2) Отправь другу · 3) Оба войдите</p>
+        <button class="btn primary" id="btn-create-room">1. Создать код</button>
         <div class="room-code-row hidden" id="room-created-row">
+          <div style="opacity:.7;font-size:13px">Код комнаты</div>
           <b id="room-code-display">----</b>
-          <button class="btn btn-sm" id="btn-copy-room">Копи</button>
-          <button class="btn primary" id="btn-enter-created">Войти</button>
+          <button class="btn btn-sm" id="btn-copy-room">Скопировать код</button>
+          <button class="btn btn-sm primary" id="btn-share-room">Отправить другу</button>
+          <button class="btn primary" id="btn-enter-created">2. Войти в свою комнату</button>
         </div>
-        <input class="input" id="room-code-input" placeholder="Код" maxlength="8" />
+        <div class="divider" style="text-align:center;opacity:.5;margin:8px 0">если есть код</div>
+        <input class="input" id="room-code-input" placeholder="ВВЕДИ КОД" maxlength="8" />
         <button class="btn" id="btn-join-room">Войти по коду</button>
       </div>
     </div>
+
     <div id="referral" class="screen hidden">
       <div class="header"><button class="btn-back" id="btn-back-ref">← Назад</button><h2>Рефералка</h2></div>
       <div class="ref-card">
         <div class="ref-bonus">+500 🪙</div>
+        <p style="opacity:.8;font-size:14px">За каждого <b>нового</b> друга по ссылке</p>
         <div class="ref-link-box" id="ref-link-text">...</div>
         <button class="btn primary" id="btn-share-ref">Поделиться</button>
         <button class="btn" id="btn-copy-ref">Скопировать</button>
       </div>
     </div>
+
     <div id="settings" class="screen hidden">
       <div class="header"><button class="btn-back" id="btn-back-settings">← Назад</button><h2>Настройки</h2></div>
       <div class="settings-list">
@@ -113,18 +125,22 @@
         <label class="set-row"><span>📳 Вибрация</span><input type="checkbox" id="set-vibro" checked /></label>
       </div>
     </div>
+
     <div id="tournament" class="screen hidden">
       <div class="header"><button class="btn-back" id="btn-back-tournament">← Назад</button><h2>Турниры</h2></div>
       <div id="tournament-list" class="tour-list"></div>
     </div>
+
     <div id="quests" class="screen hidden">
       <div class="header"><button class="btn-back" id="btn-back-quests">← Назад</button><h2>Квесты</h2></div>
       <div id="quests-list" class="quest-list"></div>
     </div>
+
     <div id="profile" class="screen hidden">
       <div class="header"><button class="btn-back" id="btn-back-profile">← Назад</button><h2>Профиль</h2></div>
       <div id="profile-box"></div>
     </div>
+
     <div id="game" class="screen hidden">
       <div class="game-top">
         <button class="btn-back" id="btn-leave">Выйти</button>
@@ -158,17 +174,18 @@
       }
     }, 4000);
   </script>
-  <script src="durak.js?v=20261027k"></script>
-  <script src="drag-play.js?v=20261027k"></script>
-  <script src="app.js?v=20261027k"></script>
-  <script src="app-patch.js?v=20261027k"></script>
-  <script src="ui-fix.js?v=20261027k"></script>
-  <script src="menu-ui.js?v=20261027k"></script>
-  <script src="sub-gate.js?v=20261027k"></script>
-  <script src="profile-modal.js?v=20261027k"></script>
-  <script src="presence.js?v=20261027k"></script>
-  <script src="stage2.js?v=20261027k"></script>
-  <script src="stage3.js?v=20261027k"></script>
-  <script src="stage4.js?v=20261027k"></script>
+  <script src="durak.js?v=20261028a"></script>
+  <script src="drag-play.js?v=20261028a"></script>
+  <script src="app.js?v=20261028a"></script>
+  <script src="app-patch.js?v=20261028a"></script>
+  <script src="online-fix.js?v=20261028a"></script>
+  <script src="ui-fix.js?v=20261028a"></script>
+  <script src="menu-ui.js?v=20261028a"></script>
+  <script src="sub-gate.js?v=20261028a"></script>
+  <script src="profile-modal.js?v=20261028a"></script>
+  <script src="presence.js?v=20261028a"></script>
+  <script src="stage2.js?v=20261028a"></script>
+  <script src="stage3.js?v=20261028a"></script>
+  <script src="stage4.js?v=20261028a"></script>
 </body>
 </html>
