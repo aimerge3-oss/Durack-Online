@@ -1,6 +1,5 @@
 /**
- * Профиль во всплывающем окне
- * @username не показываем (приватность)
+ * Профиль + купленные стикеры (без @username)
  */
 (function () {
   var API = 'https://durack-online.pozzistory666.workers.dev';
@@ -63,7 +62,6 @@
       .then(function (data) {
         if (!data || !data.ok || !data.user) throw new Error('fail');
         var u = data.user;
-        // только имя, без @username
         var name = u.first_name || 'Игрок';
         var letter = (name[0] || '?').toUpperCase();
         var avatar =
@@ -88,6 +86,22 @@
             '<div class="modal-stat"><b>' + u.coins + '</b><span>монет</span></div>';
         }
         stats += '</div>';
+
+        var stickersHtml = '';
+        var sticks = u.stickers || [];
+        if (sticks.length) {
+          stickersHtml =
+            '<div class="modal-section">Стикеры</div><div class="profile-stickers">';
+          sticks.forEach(function (s) {
+            stickersHtml +=
+              '<span class="profile-sticker" title="' +
+              (s.name || '') +
+              '">' +
+              (s.emoji || '🃏') +
+              '</span>';
+          });
+          stickersHtml += '</div>';
+        }
 
         var hist = '';
         var list = data.history || u.history || [];
@@ -114,6 +128,7 @@
           '</div>' +
           '</div>' +
           stats +
+          stickersHtml +
           hist;
       })
       .catch(function () {
@@ -127,12 +142,6 @@
     var info = document.getElementById('user-info-click');
     if (info) {
       info.addEventListener('click', function () {
-        openProfileModal(null);
-      });
-    }
-    var btn = document.getElementById('btn-profile');
-    if (btn) {
-      btn.addEventListener('click', function () {
         openProfileModal(null);
       });
     }

@@ -1,0 +1,10 @@
+.stickers-bar{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;padding:4px 0;min-height:36px}
+.stickers-bar.hidden{display:none!important}
+.sticker-chip{border:none;background:rgba(0,0,0,.35);border-radius:12px;font-size:22px;width:40px;height:40px;line-height:40px;padding:0;cursor:pointer}
+.sticker-chip:active{transform:scale(.92)}
+.sticker-float{position:fixed;left:50%;top:42%;transform:translate(-50%,-50%);z-index:25000;text-align:center;pointer-events:none;animation:stickerPop 1.6s ease forwards}
+.sticker-float-emoji{font-size:64px;line-height:1;filter:drop-shadow(0 6px 16px rgba(0,0,0,.45))}
+.sticker-float-name{margin-top:6px;font-size:13px;font-weight:600;background:rgba(0,0,0,.55);padding:4px 10px;border-radius:10px;display:inline-block}
+@keyframes stickerPop{0%{opacity:0;transform:translate(-50%,-40%) scale(.5)}15%{opacity:1;transform:translate(-50%,-50%) scale(1.15)}70%{opacity:1;transform:translate(-50%,-55%) scale(1)}100%{opacity:0;transform:translate(-50%,-70%) scale(.9)}}
+.profile-stickers{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-bottom:12px}
+.profile-sticker{font-size:28px;background:rgba(0,0,0,.25);border-radius:12px;width:44px;height:44px;display:flex;align-items:center;justify-content:center}
