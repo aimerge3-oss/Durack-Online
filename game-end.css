@@ -1,0 +1,13 @@
+.game-end-overlay{position:fixed;inset:0;z-index:30000;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(0,0,0,.72);backdrop-filter:blur(6px)}
+.game-end-overlay.hidden{display:none!important}
+.game-end-card{width:100%;max-width:320px;text-align:center;padding:32px 20px 24px;border-radius:20px;background:linear-gradient(180deg,#1e4a6e,#0d2a45);box-shadow:0 16px 48px rgba(0,0,0,.5);display:flex;flex-direction:column;align-items:center;gap:12px;animation:endPop .35s ease}
+@keyframes endPop{from{transform:scale(.85);opacity:0}to{transform:scale(1);opacity:1}}
+.game-end-emoji{font-size:56px;line-height:1}
+.game-end-title{font-size:28px;font-weight:900;letter-spacing:.04em;text-transform:uppercase}
+.game-end-overlay.win .game-end-title{color:#69f0ae}
+.game-end-overlay.lose .game-end-title{color:#ff8a80}
+.game-end-sub{font-size:15px;opacity:.8;margin-bottom:8px}
+.game-end-card .btn{max-width:200px}
+.dragging-source{opacity:.25!important}
+.card-ghost{pointer-events:none!important}
+body.dragging-card{overflow:hidden}
