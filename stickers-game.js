@@ -1,8 +1,9 @@
 /**
- * Стикеры в игре — видны сопернику через WS
+ * Стикеры в игре — только экипированные + WS
  */
 (function () {
   var API = 'https://durack-online.pozzistory666.workers.dev';
+  var EQUIP_KEY = 'durack_equipped_stickers';
 
   function $(id) { return document.getElementById(id); }
 
@@ -13,6 +14,17 @@
       if (u && u.id) return String(u.id);
     } catch (e) {}
     return null;
+  }
+
+  function getEquipped() {
+    if (typeof window.getEquippedStickerIds === 'function') return window.getEquippedStickerIds();
+    try {
+      var raw = localStorage.getItem(EQUIP_KEY);
+      var arr = raw ? JSON.parse(raw) : [];
+      return Array.isArray(arr) ? arr.map(Number) : [];
+    } catch (e) {
+      return [];
+    }
   }
 
   function myName() {
@@ -29,14 +41,11 @@
       '<div class="sticker-float-emoji">' +
       (emoji || '🃏') +
       '</div>' +
-      (fromName
-        ? '<div class="sticker-float-name">' + fromName + '</div>'
-        : '');
+      (fromName ? '<div class="sticker-float-name">' + fromName + '</div>' : '');
     document.body.appendChild(float);
     setTimeout(function () {
       if (float.parentNode) float.parentNode.removeChild(float);
     }, 1800);
-
     if (typeof window.durackVibrate === 'function') window.durackVibrate(30);
   };
 
@@ -48,16 +57,10 @@
       name: s.name || '',
       fromName: myName(),
     };
-
-    // локально сразу
     window.showStickerFloat(payload.emoji, null);
-
-    // онлайн — отправить сопернику
     try {
       var sock = window.ws || (typeof ws !== 'undefined' ? ws : null);
-      if (sock && sock.readyState === 1) {
-        sock.send(JSON.stringify(payload));
-      }
+      if (sock && sock.readyState === 1) sock.send(JSON.stringify(payload));
     } catch (e) {}
   }
 
@@ -65,7 +68,16 @@
     var bar = $('stickers-bar');
     if (!bar) return;
     bar.innerHTML = '';
-    var owned = (stickers || []).filter(function (s) { return s.owned; });
+    var equipped = getEquipped();
+    var owned = (stickers || []).filter(function (s) {
+      return s.owned && (equipped.length === 0 || equipped.indexOf(Number(s.id)) !== -1);
+    });
+    // если есть экип — только экип; если пусто — все owned
+    if (equipped.length) {
+      owned = (stickers || []).filter(function (s) {
+        return s.owned && equipped.indexOf(Number(s.id)) !== -1;
+      });
+    }
     if (!owned.length) {
       bar.classList.add('hidden');
       return;
@@ -101,19 +113,16 @@
   }
   window.refreshStickersBar = loadOwnedStickers;
 
-  // перехват WS-сообщения о стикерах
   window.handleStickerMessage = function (msg) {
     if (!msg || msg.type !== 'sticker') return;
-    var myId = null;
+    var myId = '';
     try {
       myId = String(window.myId || (window.currentUser && window.currentUser.telegram_id) || '');
     } catch (e) {}
-    // не дублируем свой (уже показали локально)
     if (msg.fromId && myId && String(msg.fromId) === myId) return;
     window.showStickerFloat(msg.emoji, msg.fromName || 'Соперник');
   };
 
-  // патч обработчика online-fix / app onmessage
   function patchWs() {
     var orig = window.startOnlineRoom;
     if (typeof orig !== 'function' || orig.__stickerPatch) return;
@@ -138,10 +147,8 @@
     window.startOnlineRoom.__stickerPatch = true;
   }
 
-  // показывать панель при входе в игру
   function onGameScreen() {
-    if (typeof window.showScreen !== 'function') return;
-    if (window.showScreen.__stickerBar) return;
+    if (typeof window.showScreen !== 'function' || window.showScreen.__stickerBar) return;
     var o = window.showScreen;
     window.showScreen = function (name) {
       var r = o.apply(this, arguments);

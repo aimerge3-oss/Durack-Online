@@ -1,10 +1,12 @@
 /**
- * Stage 2: shop, referral, friends
+ * Stage 2: shop (stable balance) + referral + friends + equip
  */
 (function () {
   var API = 'https://durack-online.pozzistory666.workers.dev';
   var BOT = 'DurackOnlineBOT';
   var privateRoomCode = null;
+  var EQUIP_KEY = 'durack_equipped_stickers';
+  var lastGoodCoins = null;
 
   var FALLBACK_STICKERS = [
     { id: 1, name: 'Классика', price: 50, emoji: '🃏', description: 'Карта', owned: false },
@@ -50,37 +52,66 @@
   }
 
   function refLink() {
-    var id = myTelegramId();
-    return 'https://t.me/' + BOT + '?startapp=ref_' + id;
+    return 'https://t.me/' + BOT + '?startapp=ref_' + myTelegramId();
   }
 
-  function readMenuCoins() {
+  function readDisplayedCoins() {
     try {
-      var el = $('user-coins');
-      if (el) return parseInt(el.textContent, 10) || 0;
+      if (lastGoodCoins != null && !isNaN(lastGoodCoins)) return lastGoodCoins;
     } catch (e) {}
     try {
-      if (window.currentUser && window.currentUser.coins != null) return window.currentUser.coins;
+      if (window.currentUser && window.currentUser.coins != null) return Number(window.currentUser.coins);
+    } catch (e) {}
+    try {
+      var el = $('user-coins');
+      if (el) {
+        var n = parseInt(el.textContent, 10);
+        if (!isNaN(n)) return n;
+      }
     } catch (e) {}
     return 0;
   }
 
-  function setCoins(n) {
+  /**
+   * force=true после покупки / из /me
+   * иначе не затираем баланс нулём из плохого /shop
+   */
+  function setCoins(n, force) {
     if (n == null || isNaN(Number(n))) return;
     n = Number(n);
+    var cur = readDisplayedCoins();
+    if (!force && n === 0 && cur > 0) return;
+    lastGoodCoins = n;
     var a = $('user-coins');
-    if (a) a.textContent = n;
+    if (a) a.textContent = String(n);
     var b = $('shop-coins');
-    if (b) b.textContent = n;
+    if (b) b.textContent = String(n);
     try {
       if (window.currentUser) window.currentUser.coins = n;
     } catch (e) {}
   }
   window.setCoinsDisplay = setCoins;
 
-  function renderShopList(list, coins) {
-    if (coins != null && !isNaN(Number(coins))) setCoins(Number(coins));
-    else setCoins(readMenuCoins());
+  function getEquipped() {
+    try {
+      var raw = localStorage.getItem(EQUIP_KEY);
+      var arr = raw ? JSON.parse(raw) : [];
+      if (!Array.isArray(arr)) return [];
+      return arr.map(Number).filter(function (x) { return x; });
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function setEquipped(ids) {
+    try {
+      localStorage.setItem(EQUIP_KEY, JSON.stringify(ids.slice(0, 8)));
+    } catch (e) {}
+    window.__equippedStickers = ids.slice(0, 8);
+  }
+  window.getEquippedStickerIds = getEquipped;
+
+  function renderShopList(list) {
     var root = $('shop-list');
     if (!root) return;
     root.innerHTML = '';
@@ -98,32 +129,95 @@
     });
   }
 
+  function renderEquipList(list) {
+    var root = $('equip-list');
+    if (!root) return;
+    root.innerHTML = '';
+    var owned = (list || []).filter(function (s) { return s.owned; });
+    var equipped = getEquipped();
+    if (!owned.length) {
+      root.innerHTML = '<p style="opacity:.65;text-align:center;grid-column:1/-1">Пока нет стикеров.<br/>Купи во вкладке «Стикеры»</p>';
+      return;
+    }
+    owned.forEach(function (s) {
+      var on = equipped.indexOf(Number(s.id)) !== -1;
+      var card = document.createElement('div');
+      card.className = 'shop-item' + (on ? ' equipped' : '');
+      card.innerHTML =
+        '<div style="font-size:32px">' + (s.emoji || '🃏') + '</div>' +
+        '<div class="shop-name">' + s.name + '</div>' +
+        '<button class="btn btn-sm ' + (on ? 'primary' : '') + ' equip-toggle" data-id="' + s.id + '">' +
+        (on ? 'Надето ✓' : 'Надеть') +
+        '</button>';
+      root.appendChild(card);
+    });
+  }
+
+  function toggleEquip(id) {
+    id = Number(id);
+    var eq = getEquipped();
+    var i = eq.indexOf(id);
+    if (i !== -1) eq.splice(i, 1);
+    else {
+      if (eq.length >= 6) {
+        toast('Максимум 6 стикеров в игре');
+        return;
+      }
+      eq.push(id);
+    }
+    setEquipped(eq);
+    if (window.__lastShopStickers) renderEquipList(window.__lastShopStickers);
+    if (typeof window.refreshStickersBar === 'function') window.refreshStickersBar();
+  }
+
+  function syncCoinsFromMe() {
+    return fetch(API + '/me', { headers: authHeaders() })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d && d.ok && d.user && d.user.coins != null) {
+          setCoins(d.user.coins, true);
+        }
+      })
+      .catch(function () {});
+  }
+
   function openShop() {
     show('shop');
-    // сразу показываем текущий баланс, чтобы не мелькал
-    setCoins(readMenuCoins());
+    // сразу фиксируем баланс из меню / памяти — без мигания в 0
+    setCoins(readDisplayedCoins(), true);
+
     var list = $('shop-list');
     if (list) list.innerHTML = '<p style="opacity:.6">...</p>';
 
-    // параллельно /me для точного баланса
-    fetch(API + '/me', { headers: authHeaders() })
-      .then(function (r) { return r.json(); })
-      .then(function (d) {
-        if (d && d.ok && d.user && d.user.coins != null) setCoins(d.user.coins);
-      })
-      .catch(function () {});
+    syncCoinsFromMe();
 
     fetch(API + '/shop', { headers: authHeaders() })
       .then(function (r) { return r.json(); })
       .then(function (data) {
-        if (!data || !data.ok) throw new Error((data && data.error) || 'API');
-        // coins из shop только если пришли числом (в т.ч. 0)
-        var c = data.coins;
-        if (c == null || isNaN(Number(c))) c = readMenuCoins();
-        renderShopList(data.stickers || FALLBACK_STICKERS, c);
+        if (!data || !data.ok) throw new Error('shop');
+        window.__lastShopStickers = data.stickers || FALLBACK_STICKERS;
+        // coins из shop только если число и не лучше чем текущий (или force если > 0)
+        if (typeof data.coins === 'number') {
+          if (data.coins > 0 || readDisplayedCoins() === 0) {
+            setCoins(data.coins, data.coins > 0);
+          }
+        }
+        renderShopList(window.__lastShopStickers);
+        renderEquipList(window.__lastShopStickers);
+
+        // авто-экип всех купленных, если ещё ничего не выбрано
+        var ownedIds = window.__lastShopStickers.filter(function (s) { return s.owned; }).map(function (s) { return Number(s.id); });
+        var eq = getEquipped().filter(function (id) { return ownedIds.indexOf(id) !== -1; });
+        if (!eq.length && ownedIds.length) {
+          setEquipped(ownedIds.slice(0, 6));
+          renderEquipList(window.__lastShopStickers);
+        } else {
+          setEquipped(eq);
+        }
       })
       .catch(function () {
-        renderShopList(FALLBACK_STICKERS, readMenuCoins());
+        renderShopList(FALLBACK_STICKERS);
+        renderEquipList(FALLBACK_STICKERS);
       });
   }
   window.openShopScreen = openShop;
@@ -138,7 +232,13 @@
       .then(function (res) {
         if (!res.ok || !res.d.ok) throw new Error((res.d && res.d.error) || 'err');
         toast('Куплено: ' + (res.d.sticker.emoji || '') + ' ' + res.d.sticker.name);
-        setCoins(res.d.coins);
+        setCoins(res.d.coins, true);
+        // авто надеть новый
+        var eq = getEquipped();
+        if (eq.indexOf(Number(id)) === -1 && eq.length < 6) {
+          eq.push(Number(id));
+          setEquipped(eq);
+        }
         openShop();
         if (typeof window.refreshStickersBar === 'function') window.refreshStickersBar();
       })
@@ -163,7 +263,7 @@
     if (window.Telegram && Telegram.WebApp && Telegram.WebApp.openTelegramLink) {
       Telegram.WebApp.openTelegramLink(
         'https://t.me/share/url?url=' + encodeURIComponent(link) +
-        '&text=' + encodeURIComponent('Давай сыграем в Дурак Онлайн! +500 монет за друга')
+        '&text=' + encodeURIComponent('Давай сыграем в Дурак Онлайн!')
       );
     } else copyText(link);
   }
@@ -180,8 +280,6 @@
     privateRoomCode = null;
     var row = $('room-created-row');
     if (row) row.classList.add('hidden');
-    var input = $('room-code-input');
-    if (input) input.value = '';
   }
   window.openFriendsScreen = openFriends;
 
@@ -191,20 +289,19 @@
     if (row) row.classList.remove('hidden');
     var disp = $('room-code-display');
     if (disp) disp.textContent = privateRoomCode;
-    toast('Код: ' + privateRoomCode);
   }
 
   function enterPrivateRoom(code) {
     code = String(code || '').trim().toUpperCase();
     if (!code || code.length < 3) { toast('Введи код'); return; }
     if (typeof window.startOnlineRoom === 'function') {
-      window.startOnlineRoom('priv_' + code, { needPlayers: 2, hint: 'Комната ' + code + '...' });
-    } else toast('Онлайн не готов');
+      window.startOnlineRoom('priv_' + code, { needPlayers: 2 });
+    }
   }
 
   function shareRoom() {
     if (!privateRoomCode) return;
-    var text = 'Заходи в Дурак! Код: ' + privateRoomCode;
+    var text = 'Код комнаты Дурак: ' + privateRoomCode;
     if (window.Telegram && Telegram.WebApp && Telegram.WebApp.openTelegramLink) {
       Telegram.WebApp.openTelegramLink(
         'https://t.me/share/url?url=' + encodeURIComponent('https://t.me/' + BOT) +
@@ -213,11 +310,39 @@
     } else copyText(text);
   }
 
+  function bindShopTabs() {
+    var tabs = $('shop-tabs');
+    if (!tabs || tabs.__bound) return;
+    tabs.__bound = true;
+    tabs.addEventListener('click', function (e) {
+      var t = e.target.closest('.shop-tab');
+      if (!t) return;
+      var name = t.getAttribute('data-tab');
+      tabs.querySelectorAll('.shop-tab').forEach(function (x) { x.classList.remove('active'); });
+      t.classList.add('active');
+      ['stickers', 'equip', 'donate', 'cases'].forEach(function (p) {
+        var panel = $('shop-panel-' + p);
+        if (!panel) return;
+        if (p === name) panel.classList.remove('hidden');
+        else panel.classList.add('hidden');
+      });
+      // баланс не трогаем при переключении вкладок
+      setCoins(readDisplayedCoins(), true);
+    });
+  }
+
   function bind() {
+    bindShopTabs();
     if ($('shop-list')) {
       $('shop-list').addEventListener('click', function (e) {
         var btn = e.target.closest('.shop-buy');
         if (btn) buySticker(parseInt(btn.getAttribute('data-id'), 10));
+      });
+    }
+    if ($('equip-list')) {
+      $('equip-list').addEventListener('click', function (e) {
+        var btn = e.target.closest('.equip-toggle');
+        if (btn) toggleEquip(btn.getAttribute('data-id'));
       });
     }
     if ($('btn-shop')) $('btn-shop').addEventListener('click', function () { openShop(); });
@@ -231,8 +356,7 @@
     if ($('btn-enter-created')) $('btn-enter-created').onclick = function () { enterPrivateRoom(privateRoomCode); };
     if ($('btn-join-room')) {
       $('btn-join-room').onclick = function () {
-        var input = $('room-code-input');
-        enterPrivateRoom(input && input.value);
+        enterPrivateRoom($('room-code-input') && $('room-code-input').value);
       };
     }
     if ($('btn-back-friends')) $('btn-back-friends').onclick = function () { show('menu'); };
