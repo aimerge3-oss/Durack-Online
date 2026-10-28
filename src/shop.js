@@ -1,5 +1,5 @@
 /**
- * Магазин стикеров — атомная покупка
+ * Магазин стикеров — совместим со старой схемой D1
  */
 
 const cors = {
@@ -34,6 +34,14 @@ async function ensureStickers(env) {
       description TEXT
     )
   `).run();
+
+  // старые БД без description — добавляем колонку
+  try {
+    await env.DB.prepare('ALTER TABLE stickers ADD COLUMN description TEXT').run();
+  } catch (e) {
+    // уже есть — ок
+  }
+
   await env.DB.prepare(`
     CREATE TABLE IF NOT EXISTS user_stickers (
       user_id INTEGER NOT NULL,
@@ -42,12 +50,24 @@ async function ensureStickers(env) {
       PRIMARY KEY (user_id, sticker_id)
     )
   `).run();
+
   for (const s of SEED) {
-    await env.DB.prepare(
-      'INSERT OR IGNORE INTO stickers (id, name, price, emoji, description) VALUES (?, ?, ?, ?, ?)'
-    )
-      .bind(s.id, s.name, s.price, s.emoji, s.description)
-      .run();
+    try {
+      await env.DB.prepare(
+        'INSERT OR IGNORE INTO stickers (id, name, price, emoji, description) VALUES (?, ?, ?, ?, ?)'
+      )
+        .bind(s.id, s.name, s.price, s.emoji, s.description)
+        .run();
+    } catch (e) {
+      // fallback без description
+      try {
+        await env.DB.prepare(
+          'INSERT OR IGNORE INTO stickers (id, name, price, emoji) VALUES (?, ?, ?, ?)'
+        )
+          .bind(s.id, s.name, s.price, s.emoji)
+          .run();
+      } catch (e2) {}
+    }
   }
 }
 
@@ -76,21 +96,42 @@ export async function handleShop(request, env) {
       }
     }
 
-    const stickers = await env.DB.prepare(
-      'SELECT id, name, price, emoji, description FROM stickers ORDER BY price ASC'
-    ).all();
-
-    const list = (stickers.results && stickers.results.length
-      ? stickers.results
-      : SEED
-    ).map((s) => ({
-      id: s.id,
-      name: s.name,
-      price: s.price,
-      emoji: s.emoji,
-      description: s.description,
-      owned: owned.has(Number(s.id)),
+    let list = SEED.map((s) => ({
+      ...s,
+      owned: owned.has(s.id),
     }));
+
+    try {
+      const stickers = await env.DB.prepare(
+        'SELECT id, name, price, emoji, description FROM stickers ORDER BY price ASC'
+      ).all();
+      if (stickers.results && stickers.results.length) {
+        list = stickers.results.map((s) => ({
+          id: s.id,
+          name: s.name,
+          price: s.price,
+          emoji: s.emoji,
+          description: s.description || '',
+          owned: owned.has(Number(s.id)),
+        }));
+      }
+    } catch (e) {
+      try {
+        const stickers = await env.DB.prepare(
+          'SELECT id, name, price, emoji FROM stickers ORDER BY price ASC'
+        ).all();
+        if (stickers.results && stickers.results.length) {
+          list = stickers.results.map((s) => ({
+            id: s.id,
+            name: s.name,
+            price: s.price,
+            emoji: s.emoji,
+            description: '',
+            owned: owned.has(Number(s.id)),
+          }));
+        }
+      } catch (e2) {}
+    }
 
     return new Response(JSON.stringify({ ok: true, stickers: list, coins }), {
       headers: cors,
@@ -140,12 +181,14 @@ export async function handleBuy(request, env) {
       });
     }
 
-    // гарантируем стикер в БД
-    let sticker = await env.DB.prepare(
-      'SELECT id, name, price, emoji FROM stickers WHERE id = ?'
-    )
-      .bind(stickerId)
-      .first();
+    let sticker = null;
+    try {
+      sticker = await env.DB.prepare(
+        'SELECT id, name, price, emoji FROM stickers WHERE id = ?'
+      )
+        .bind(stickerId)
+        .first();
+    } catch (e) {}
 
     if (!sticker) {
       const seed = SEED.find((s) => s.id === stickerId);
@@ -155,11 +198,19 @@ export async function handleBuy(request, env) {
           headers: cors,
         });
       }
-      await env.DB.prepare(
-        'INSERT OR REPLACE INTO stickers (id, name, price, emoji, description) VALUES (?, ?, ?, ?, ?)'
-      )
-        .bind(seed.id, seed.name, seed.price, seed.emoji, seed.description)
-        .run();
+      try {
+        await env.DB.prepare(
+          'INSERT OR IGNORE INTO stickers (id, name, price, emoji, description) VALUES (?, ?, ?, ?, ?)'
+        )
+          .bind(seed.id, seed.name, seed.price, seed.emoji, seed.description)
+          .run();
+      } catch (e) {
+        await env.DB.prepare(
+          'INSERT OR IGNORE INTO stickers (id, name, price, emoji) VALUES (?, ?, ?, ?)'
+        )
+          .bind(seed.id, seed.name, seed.price, seed.emoji)
+          .run();
+      }
       sticker = seed;
     }
 
@@ -169,10 +220,10 @@ export async function handleBuy(request, env) {
       .bind(user.id, stickerId)
       .first();
     if (already) {
-      return new Response(JSON.stringify({ error: 'Уже куплено', coins: user.coins }), {
-        status: 400,
-        headers: cors,
-      });
+      return new Response(
+        JSON.stringify({ error: 'Уже куплено', coins: user.coins }),
+        { status: 400, headers: cors }
+      );
     }
 
     if ((user.coins || 0) < sticker.price) {
@@ -182,8 +233,7 @@ export async function handleBuy(request, env) {
       });
     }
 
-    // Атомно: списание + выдача (если insert падает — откат обоих)
-    const batch = await env.DB.batch([
+    await env.DB.batch([
       env.DB.prepare(
         'UPDATE users SET coins = coins - ? WHERE id = ? AND coins >= ?'
       ).bind(sticker.price, user.id, sticker.price),
@@ -192,7 +242,6 @@ export async function handleBuy(request, env) {
       ).bind(user.id, stickerId),
     ]);
 
-    // проверяем что оба шага успешны
     const owned = await env.DB.prepare(
       'SELECT 1 AS x FROM user_stickers WHERE user_id = ? AND sticker_id = ?'
     )
@@ -200,12 +249,11 @@ export async function handleBuy(request, env) {
       .first();
 
     if (!owned) {
-      // откат списания если стикер не выдался
       await env.DB.prepare('UPDATE users SET coins = coins + ? WHERE id = ?')
         .bind(sticker.price, user.id)
         .run();
       return new Response(
-        JSON.stringify({ error: 'Не удалось выдать стикер, монеты вернули' }),
+        JSON.stringify({ error: 'Не удалось выдать стикер' }),
         { status: 500, headers: cors }
       );
     }
