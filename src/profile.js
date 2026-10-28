@@ -1,5 +1,6 @@
 /**
  * Профиль и история игр
+ * @username не отдаём в чужих профилях (приватность)
  */
 
 const cors = {
@@ -39,21 +40,23 @@ async function buildProfile(env, telegramId, isSelf) {
     gamesTotal = c.c || 0;
   } catch (e) {}
 
-  // чужой профиль — без монет (приватность)
   return {
     telegram_id: user.telegram_id,
-    username: user.username,
-    first_name: user.first_name,
+    // username только себе; чужим не отдаём
+    username: isSelf ? user.username : null,
+    first_name: user.first_name || 'Игрок',
     photo_url: user.photo_url,
     coins: isSelf ? user.coins : null,
     wins_random: user.wins_random || 0,
     games_total: gamesTotal,
     created_at: user.created_at,
-    history: isSelf ? history : history.map((h) => ({
-      mode: h.mode,
-      result: h.result,
-      created_at: h.created_at,
-    })),
+    history: isSelf
+      ? history
+      : history.map((h) => ({
+          mode: h.mode,
+          result: h.result,
+          created_at: h.created_at,
+        })),
   };
 }
 
@@ -62,15 +65,26 @@ export async function handleProfile(request, env) {
   try {
     const telegramId = getTelegramId(request);
     if (!telegramId) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: cors });
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: cors,
+      });
     }
     const user = await buildProfile(env, telegramId, true);
     if (!user) {
-      return new Response(JSON.stringify({ error: 'Not found' }), { status: 404, headers: cors });
+      return new Response(JSON.stringify({ error: 'Not found' }), {
+        status: 404,
+        headers: cors,
+      });
     }
-    return new Response(JSON.stringify({ ok: true, user, history: user.history }), { headers: cors });
+    return new Response(JSON.stringify({ ok: true, user, history: user.history }), {
+      headers: cors,
+    });
   } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: cors });
+    return new Response(JSON.stringify({ error: err.message }), {
+      status: 500,
+      headers: cors,
+    });
   }
 }
 
@@ -80,17 +94,26 @@ export async function handlePublicProfile(request, env, targetId) {
     const me = getTelegramId(request);
     const tid = parseInt(targetId, 10);
     if (!tid || isNaN(tid)) {
-      return new Response(JSON.stringify({ error: 'bad id' }), { status: 400, headers: cors });
+      return new Response(JSON.stringify({ error: 'bad id' }), {
+        status: 400,
+        headers: cors,
+      });
     }
     const isSelf = me && me === tid;
     const user = await buildProfile(env, tid, !!isSelf);
     if (!user) {
-      return new Response(JSON.stringify({ error: 'Not found' }), { status: 404, headers: cors });
+      return new Response(JSON.stringify({ error: 'Not found' }), {
+        status: 404,
+        headers: cors,
+      });
     }
     return new Response(JSON.stringify({ ok: true, user, history: user.history || [] }), {
       headers: cors,
     });
   } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: cors });
+    return new Response(JSON.stringify({ error: err.message }), {
+      status: 500,
+      headers: cors,
+    });
   }
 }
