@@ -6,15 +6,11 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <title>Дурак Онлайн</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <link rel="stylesheet" href="styles.css?v=20261027j" />
+  <link rel="stylesheet" href="styles.css?v=20261027k" />
 </head>
 <body>
   <div id="app">
-    <div id="loading" class="screen">
-      <div class="loader"></div>
-      <p>Загрузка...</p>
-    </div>
-
+    <div id="loading" class="screen"><div class="loader"></div><p>Загрузка...</p></div>
     <div id="menu" class="screen hidden">
       <div class="top-bar">
         <div class="user-info" id="user-info-click">
@@ -24,18 +20,12 @@
         <div class="top-right">
           <div class="coins"><span id="user-coins">0</span> 🪙</div>
           <div class="online-badge" id="online-badge">
-            <span class="online-dot"></span>
-            <span id="online-count">0</span>
+            <span class="online-dot"></span><span id="online-count">0</span>
             <span class="online-label">онлайн</span>
           </div>
         </div>
       </div>
-
-      <div class="menu-hero">
-        <div class="menu-title">Дурак</div>
-        <div class="menu-sub">Онлайн</div>
-      </div>
-
+      <div class="menu-hero"><div class="menu-title">Дурак</div><div class="menu-sub">Онлайн</div></div>
       <div class="menu-buttons menu-main">
         <button class="btn primary btn-lg" id="btn-play">Играть</button>
         <button class="btn" id="btn-shop">Магазин</button>
@@ -45,15 +35,12 @@
         </div>
         <button class="btn btn-outline" id="btn-referral">Пригласить · +500</button>
       </div>
-
       <div class="menu-foot-links">
         <button type="button" class="link-btn" id="btn-tournament">Турниры</button>
         <button type="button" class="link-btn" id="btn-settings">Настройки</button>
       </div>
-      <div class="footer"><p class="version">Durack Online v0.5.2</p></div>
+      <div class="footer"><p class="version">Durack Online v0.5.3</p></div>
     </div>
-
-    <!-- Подменю Играть -->
     <div id="play-sheet" class="sheet-overlay hidden">
       <div class="sheet">
         <div class="sheet-handle"></div>
@@ -65,8 +52,6 @@
         <button class="btn btn-ghost" id="btn-play-close">Закрыть</button>
       </div>
     </div>
-
-    <!-- Выбор числа ботов -->
     <div id="bots-sheet" class="sheet-overlay hidden">
       <div class="sheet">
         <div class="sheet-handle"></div>
@@ -81,12 +66,10 @@
         <button class="btn btn-ghost" id="btn-bots-close">Назад</button>
       </div>
     </div>
-
     <div id="leaderboard" class="screen hidden">
       <div class="header"><button class="btn-back" id="btn-back-lb">← Назад</button><h2>Доска почёта</h2></div>
       <div id="lb-list" class="list"></div>
     </div>
-
     <div id="shop" class="screen hidden">
       <div class="header"><button class="btn-back" id="btn-back-shop">← Назад</button><h2>Магазин</h2></div>
       <div class="shop-tabs" id="shop-tabs">
@@ -98,37 +81,22 @@
         <p class="screen-sub">Баланс · <b id="shop-coins">0</b> 🪙</p>
         <div id="shop-list" class="shop-grid"></div>
       </div>
-      <div id="shop-panel-donate" class="shop-panel hidden">
-        <div class="stub-card">
-          <div class="stub-emoji">💰</div>
-          <h3>Донат</h3>
-          <p>Скоро — поддержка проекта за Stars / карту</p>
-        </div>
-      </div>
-      <div id="shop-panel-cases" class="shop-panel hidden">
-        <div class="stub-card">
-          <div class="stub-emoji">🎁</div>
-          <h3>Кейсы</h3>
-          <p>Скоро — случайные стикеры и монеты</p>
-        </div>
-      </div>
+      <div id="shop-panel-donate" class="shop-panel hidden"><div class="stub-card"><div class="stub-emoji">💰</div><h3>Донат</h3><p>Скоро</p></div></div>
+      <div id="shop-panel-cases" class="shop-panel hidden"><div class="stub-card"><div class="stub-emoji">🎁</div><h3>Кейсы</h3><p>Скоро</p></div></div>
     </div>
-
     <div id="friends" class="screen hidden">
       <div class="header"><button class="btn-back" id="btn-back-friends">← Назад</button><h2>Комната</h2></div>
       <div class="friends-box">
-        <button class="btn primary" id="btn-create-room">Создать комнату</button>
+        <button class="btn primary" id="btn-create-room">Создать</button>
         <div class="room-code-row hidden" id="room-created-row">
           <b id="room-code-display">----</b>
           <button class="btn btn-sm" id="btn-copy-room">Копи</button>
-          <button class="btn btn-sm primary" id="btn-share-room">Share</button>
           <button class="btn primary" id="btn-enter-created">Войти</button>
         </div>
         <input class="input" id="room-code-input" placeholder="Код" maxlength="8" />
         <button class="btn" id="btn-join-room">Войти по коду</button>
       </div>
     </div>
-
     <div id="referral" class="screen hidden">
       <div class="header"><button class="btn-back" id="btn-back-ref">← Назад</button><h2>Рефералка</h2></div>
       <div class="ref-card">
@@ -138,7 +106,6 @@
         <button class="btn" id="btn-copy-ref">Скопировать</button>
       </div>
     </div>
-
     <div id="settings" class="screen hidden">
       <div class="header"><button class="btn-back" id="btn-back-settings">← Назад</button><h2>Настройки</h2></div>
       <div class="settings-list">
@@ -146,33 +113,24 @@
         <label class="set-row"><span>📳 Вибрация</span><input type="checkbox" id="set-vibro" checked /></label>
       </div>
     </div>
-
     <div id="tournament" class="screen hidden">
       <div class="header"><button class="btn-back" id="btn-back-tournament">← Назад</button><h2>Турниры</h2></div>
-      <p class="screen-sub">Авто ~8 ч · приз 20 🪙 · 18 мин</p>
       <div id="tournament-list" class="tour-list"></div>
     </div>
-
     <div id="quests" class="screen hidden">
-      <div class="header"><button class="btn-back" id="btn-back-quests">← Назад</button><h2>Квесты дня</h2></div>
-      <p class="screen-sub">Макс. ~95 🪙 / день</p>
+      <div class="header"><button class="btn-back" id="btn-back-quests">← Назад</button><h2>Квесты</h2></div>
       <div id="quests-list" class="quest-list"></div>
     </div>
-
     <div id="profile" class="screen hidden">
       <div class="header"><button class="btn-back" id="btn-back-profile">← Назад</button><h2>Профиль</h2></div>
       <div id="profile-box"></div>
     </div>
-
     <div id="game" class="screen hidden">
       <div class="game-top">
         <button class="btn-back" id="btn-leave">Выйти</button>
         <div class="timer-wrap"><span id="timer">15</span></div>
         <div class="deck-info" id="deck-info">
-          <div class="trump-label">
-            <span class="trump-label-text">Козырь</span>
-            <span class="trump-suit-big" id="trump-suit-big">♠</span>
-          </div>
+          <div class="trump-label"><span class="trump-label-text">Козырь</span><span class="trump-suit-big" id="trump-suit-big">♠</span></div>
           <div class="trump-pile" id="trump-pile">
             <div class="trump-card-face" id="trump-card-face"><span class="rank">6</span><span class="suit">♠</span></div>
             <div class="deck-stack" id="deck-stack"></div>
@@ -182,10 +140,7 @@
       </div>
       <div class="opponents" id="opponents"></div>
       <div id="stickers-bar" class="stickers-bar hidden"></div>
-      <div class="table-area">
-        <div class="table-cards" id="table-cards"></div>
-        <p class="table-hint" id="table-hint">...</p>
-      </div>
+      <div class="table-area"><div class="table-cards" id="table-cards"></div><p class="table-hint" id="table-hint">...</p></div>
       <div class="hand-area"><div class="hand" id="player-hand"></div></div>
       <div class="actions" id="actions">
         <button class="btn action-btn" id="btn-take">Беру</button>
@@ -194,27 +149,26 @@
       </div>
     </div>
   </div>
-
   <script>
     setTimeout(function () {
       var loading = document.getElementById('loading');
       var menu = document.getElementById('menu');
       if (loading && menu && !loading.classList.contains('hidden')) {
-        loading.classList.add('hidden');
-        menu.classList.remove('hidden');
+        loading.classList.add('hidden'); menu.classList.remove('hidden');
       }
     }, 4000);
   </script>
-  <script src="durak.js?v=20261027j"></script>
-  <script src="drag-play.js?v=20261027j"></script>
-  <script src="app.js?v=20261027j"></script>
-  <script src="app-patch.js?v=20261027j"></script>
-  <script src="ui-fix.js?v=20261027j"></script>
-  <script src="menu-ui.js?v=20261027j"></script>
-  <script src="profile-modal.js?v=20261027j"></script>
-  <script src="presence.js?v=20261027j"></script>
-  <script src="stage2.js?v=20261027j"></script>
-  <script src="stage3.js?v=20261027j"></script>
-  <script src="stage4.js?v=20261027j"></script>
+  <script src="durak.js?v=20261027k"></script>
+  <script src="drag-play.js?v=20261027k"></script>
+  <script src="app.js?v=20261027k"></script>
+  <script src="app-patch.js?v=20261027k"></script>
+  <script src="ui-fix.js?v=20261027k"></script>
+  <script src="menu-ui.js?v=20261027k"></script>
+  <script src="sub-gate.js?v=20261027k"></script>
+  <script src="profile-modal.js?v=20261027k"></script>
+  <script src="presence.js?v=20261027k"></script>
+  <script src="stage2.js?v=20261027k"></script>
+  <script src="stage3.js?v=20261027k"></script>
+  <script src="stage4.js?v=20261027k"></script>
 </body>
 </html>
