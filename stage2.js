@@ -1,5 +1,5 @@
 /**
- * Stage 2: shop, referral, friends (clear room UX)
+ * Stage 2: shop, referral, friends
  */
 (function () {
   var API = 'https://durack-online.pozzistory666.workers.dev';
@@ -49,21 +49,38 @@
     return t && t !== '0' ? t : '0';
   }
 
-  // Важно: startapp=ref_ID — так Telegram передаёт start_param
   function refLink() {
     var id = myTelegramId();
     return 'https://t.me/' + BOT + '?startapp=ref_' + id;
   }
 
+  function readMenuCoins() {
+    try {
+      var el = $('user-coins');
+      if (el) return parseInt(el.textContent, 10) || 0;
+    } catch (e) {}
+    try {
+      if (window.currentUser && window.currentUser.coins != null) return window.currentUser.coins;
+    } catch (e) {}
+    return 0;
+  }
+
   function setCoins(n) {
+    if (n == null || isNaN(Number(n))) return;
+    n = Number(n);
     var a = $('user-coins');
     if (a) a.textContent = n;
     var b = $('shop-coins');
     if (b) b.textContent = n;
+    try {
+      if (window.currentUser) window.currentUser.coins = n;
+    } catch (e) {}
   }
+  window.setCoinsDisplay = setCoins;
 
   function renderShopList(list, coins) {
-    setCoins(coins || 0);
+    if (coins != null && !isNaN(Number(coins))) setCoins(Number(coins));
+    else setCoins(readMenuCoins());
     var root = $('shop-list');
     if (!root) return;
     root.innerHTML = '';
@@ -83,21 +100,30 @@
 
   function openShop() {
     show('shop');
+    // сразу показываем текущий баланс, чтобы не мелькал
+    setCoins(readMenuCoins());
     var list = $('shop-list');
     if (list) list.innerHTML = '<p style="opacity:.6">...</p>';
+
+    // параллельно /me для точного баланса
+    fetch(API + '/me', { headers: authHeaders() })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d && d.ok && d.user && d.user.coins != null) setCoins(d.user.coins);
+      })
+      .catch(function () {});
+
     fetch(API + '/shop', { headers: authHeaders() })
       .then(function (r) { return r.json(); })
       .then(function (data) {
         if (!data || !data.ok) throw new Error((data && data.error) || 'API');
-        renderShopList(data.stickers || FALLBACK_STICKERS, data.coins);
+        // coins из shop только если пришли числом (в т.ч. 0)
+        var c = data.coins;
+        if (c == null || isNaN(Number(c))) c = readMenuCoins();
+        renderShopList(data.stickers || FALLBACK_STICKERS, c);
       })
       .catch(function () {
-        var coins = 0;
-        try {
-          var el = $('user-coins');
-          if (el) coins = parseInt(el.textContent, 10) || 0;
-        } catch (e) {}
-        renderShopList(FALLBACK_STICKERS, coins);
+        renderShopList(FALLBACK_STICKERS, readMenuCoins());
       });
   }
   window.openShopScreen = openShop;
@@ -114,6 +140,7 @@
         toast('Куплено: ' + (res.d.sticker.emoji || '') + ' ' + res.d.sticker.name);
         setCoins(res.d.coins);
         openShop();
+        if (typeof window.refreshStickersBar === 'function') window.refreshStickersBar();
       })
       .catch(function (e) { toast(e.message || 'Ошибка покупки'); });
   }
@@ -164,23 +191,20 @@
     if (row) row.classList.remove('hidden');
     var disp = $('room-code-display');
     if (disp) disp.textContent = privateRoomCode;
-    toast('Код комнаты: ' + privateRoomCode + '\nОтправь другу и нажми «Войти в свою комнату»');
+    toast('Код: ' + privateRoomCode);
   }
 
   function enterPrivateRoom(code) {
     code = String(code || '').trim().toUpperCase();
-    if (!code || code.length < 3) { toast('Введи код комнаты'); return; }
+    if (!code || code.length < 3) { toast('Введи код'); return; }
     if (typeof window.startOnlineRoom === 'function') {
-      window.startOnlineRoom('priv_' + code, {
-        needPlayers: 2,
-        hint: 'Комната ' + code + ' · ждём друга...',
-      });
+      window.startOnlineRoom('priv_' + code, { needPlayers: 2, hint: 'Комната ' + code + '...' });
     } else toast('Онлайн не готов');
   }
 
   function shareRoom() {
     if (!privateRoomCode) return;
-    var text = 'Заходи в Дурак! Код комнаты: ' + privateRoomCode;
+    var text = 'Заходи в Дурак! Код: ' + privateRoomCode;
     if (window.Telegram && Telegram.WebApp && Telegram.WebApp.openTelegramLink) {
       Telegram.WebApp.openTelegramLink(
         'https://t.me/share/url?url=' + encodeURIComponent('https://t.me/' + BOT) +
@@ -196,15 +220,9 @@
         if (btn) buySticker(parseInt(btn.getAttribute('data-id'), 10));
       });
     }
-    if ($('btn-shop')) {
-      $('btn-shop').addEventListener('click', function () { openShop(); });
-    }
-    if ($('btn-referral')) {
-      $('btn-referral').addEventListener('click', function () { openReferral(); });
-    }
-    if ($('btn-friends')) {
-      $('btn-friends').addEventListener('click', function () { openFriends(); });
-    }
+    if ($('btn-shop')) $('btn-shop').addEventListener('click', function () { openShop(); });
+    if ($('btn-referral')) $('btn-referral').addEventListener('click', function () { openReferral(); });
+    if ($('btn-friends')) $('btn-friends').addEventListener('click', function () { openFriends(); });
     if ($('btn-share-ref')) $('btn-share-ref').onclick = shareRef;
     if ($('btn-copy-ref')) $('btn-copy-ref').onclick = function () { copyText(refLink()); };
     if ($('btn-create-room')) $('btn-create-room').onclick = createRoom;

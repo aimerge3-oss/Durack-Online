@@ -1,6 +1,5 @@
 /**
- * Профиль и история игр
- * @username не отдаём в чужих профилях (приватность)
+ * Профиль + стикеры (без @username у чужих)
  */
 
 const cors = {
@@ -14,9 +13,26 @@ function getTelegramId(request) {
   return m ? parseInt(m[1], 10) : null;
 }
 
+async function loadOwnedStickers(env, userId) {
+  try {
+    const rows = await env.DB.prepare(`
+      SELECT s.id, s.name, s.emoji, s.price
+      FROM user_stickers us
+      JOIN stickers s ON s.id = us.sticker_id
+      WHERE us.user_id = ?
+      ORDER BY s.price ASC
+    `)
+      .bind(userId)
+      .all();
+    return rows.results || [];
+  } catch (e) {
+    return [];
+  }
+}
+
 async function buildProfile(env, telegramId, isSelf) {
   const user = await env.DB.prepare(
-    'SELECT telegram_id, username, first_name, photo_url, coins, wins_random, created_at FROM users WHERE telegram_id = ?'
+    'SELECT id, telegram_id, username, first_name, photo_url, coins, wins_random, created_at FROM users WHERE telegram_id = ?'
   )
     .bind(telegramId)
     .first();
@@ -40,9 +56,10 @@ async function buildProfile(env, telegramId, isSelf) {
     gamesTotal = c.c || 0;
   } catch (e) {}
 
+  const stickers = await loadOwnedStickers(env, user.id);
+
   return {
     telegram_id: user.telegram_id,
-    // username только себе; чужим не отдаём
     username: isSelf ? user.username : null,
     first_name: user.first_name || 'Игрок',
     photo_url: user.photo_url,
@@ -50,6 +67,7 @@ async function buildProfile(env, telegramId, isSelf) {
     wins_random: user.wins_random || 0,
     games_total: gamesTotal,
     created_at: user.created_at,
+    stickers: stickers,
     history: isSelf
       ? history
       : history.map((h) => ({
@@ -60,7 +78,6 @@ async function buildProfile(env, telegramId, isSelf) {
   };
 }
 
-/** GET /profile — свой */
 export async function handleProfile(request, env) {
   try {
     const telegramId = getTelegramId(request);
@@ -88,7 +105,6 @@ export async function handleProfile(request, env) {
   }
 }
 
-/** GET /profile/:telegramId — публичный профиль */
 export async function handlePublicProfile(request, env, targetId) {
   try {
     const me = getTelegramId(request);
