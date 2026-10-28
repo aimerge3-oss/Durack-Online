@@ -2,6 +2,8 @@
  * Простые API эндпоинты
  */
 
+import { checkChannelSub, isSubRequired, channelLink } from './sub.js';
+
 function getTelegramId(request) {
   const auth = request.headers.get('Authorization') || '';
   const match = auth.match(/^Bearer\s+(\d+)$/i);
@@ -35,19 +37,31 @@ export async function handleMe(request, env) {
     });
   }
 
-  // heartbeat
   await env.DB.prepare(
     'UPDATE users SET updated_at = CURRENT_TIMESTAMP WHERE telegram_id = ?'
   )
     .bind(telegramId)
     .run();
 
-  return new Response(JSON.stringify({ ok: true, user }), { headers: cors });
+  const sub = await checkChannelSub(env, telegramId);
+  return new Response(
+    JSON.stringify({
+      ok: true,
+      user,
+      subscription: {
+        required: isSubRequired(env),
+        subscribed: !!sub.ok,
+        channel: channelLink(env),
+        status: sub.status || null,
+      },
+    }),
+    { headers: cors }
+  );
 }
 
 export async function handleLeaderboard(request, env) {
   const rows = await env.DB.prepare(`
-    SELECT username, first_name, photo_url, wins_random, coins
+    SELECT telegram_id, username, first_name, photo_url, wins_random, coins
     FROM users
     ORDER BY wins_random DESC
     LIMIT 50
@@ -62,7 +76,6 @@ export async function handleLeaderboard(request, env) {
   );
 }
 
-/** GET /online — сколько активны за последние 5 минут */
 export async function handleOnline(request, env) {
   try {
     const row = await env.DB.prepare(`
@@ -78,28 +91,26 @@ export async function handleOnline(request, env) {
       { headers: cors }
     );
   } catch (e) {
-    return new Response(
-      JSON.stringify({ ok: true, online: 0 }),
-      { headers: cors }
-    );
+    return new Response(JSON.stringify({ ok: true, online: 0 }), { headers: cors });
   }
 }
 
-/** POST /presence — heartbeat «я в сети» */
 export async function handlePresence(request, env) {
-  const telegramId = getTelegramId(request);
-  if (!telegramId) {
-    // гость — не пишем в БД, но отвечаем ok
-    return new Response(JSON.stringify({ ok: true }), { headers: cors });
-  }
-
   try {
+    const telegramId = getTelegramId(request);
+    if (!telegramId) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: cors,
+      });
+    }
     await env.DB.prepare(
       'UPDATE users SET updated_at = CURRENT_TIMESTAMP WHERE telegram_id = ?'
     )
       .bind(telegramId)
       .run();
-  } catch (_) {}
-
-  return new Response(JSON.stringify({ ok: true }), { headers: cors });
+    return new Response(JSON.stringify({ ok: true }), { headers: cors });
+  } catch (e) {
+    return new Response(JSON.stringify({ ok: false }), { headers: cors });
+  }
 }

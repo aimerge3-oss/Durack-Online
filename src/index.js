@@ -17,6 +17,7 @@ import {
   createAutoTournament,
 } from './admin.js';
 import { handleProfile, handlePublicProfile } from './profile.js';
+import { handleSubCheck } from './sub.js';
 import { GameRoom } from './game-room.js';
 import { handleTelegramWebhook, handleSetWebhook } from './bot.js';
 
@@ -44,7 +45,7 @@ export default {
       const path = url.pathname;
 
       if (path === '/' && request.method === 'GET') {
-        return json({ name: 'Durack Online', version: '0.5.1', status: 'ok' });
+        return json({ name: 'Durack Online', version: '0.5.3', status: 'ok' });
       }
 
       if (path === '/telegram' && request.method === 'POST') {
@@ -58,6 +59,9 @@ export default {
       }
       if (path === '/me' && request.method === 'GET') {
         return handleMe(request, env);
+      }
+      if (path === '/sub-check' && request.method === 'GET') {
+        return handleSubCheck(request, env);
       }
       if (path === '/profile' && request.method === 'GET') {
         return handleProfile(request, env);

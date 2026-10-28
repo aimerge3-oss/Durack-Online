@@ -2,6 +2,13 @@
  * Telegram Mini App авторизация + рефералка
  */
 
+import { checkChannelSub, isSubRequired, channelLink } from './sub.js';
+
+const cors = {
+  'Access-Control-Allow-Origin': '*',
+  'Content-Type': 'application/json',
+};
+
 export async function validateTelegramInitData(initData, botToken) {
   if (!initData || !botToken) {
     return { valid: false, error: 'Missing initData or botToken' };
@@ -48,14 +55,14 @@ export async function validateTelegramInitData(initData, botToken) {
 
     const authDate = parseInt(params.get('auth_date') || '0', 10);
     const now = Math.floor(Date.now() / 1000);
-    if (now - authDate > 86400) return { valid: false, error: 'initData expired' };
+    if (now - authDate > 86400) return { valid: false, error: 'Auth data expired' };
 
-    const userStr = params.get('user');
     let user = null;
-    if (userStr) user = JSON.parse(userStr);
+    try {
+      user = JSON.parse(params.get('user') || 'null');
+    } catch (e) {}
 
     const startParam = params.get('start_param') || null;
-
     return { valid: true, user, startParam };
   } catch (e) {
     return { valid: false, error: e.message };
@@ -63,17 +70,11 @@ export async function validateTelegramInitData(initData, botToken) {
 }
 
 export async function handleAuth(request, env) {
-  const cors = {
-    'Access-Control-Allow-Origin': '*',
-    'Content-Type': 'application/json',
-  };
-
   try {
     const body = await request.json();
-    const { initData } = body;
-    let referrerId = body.referrerId != null ? parseInt(body.referrerId, 10) : null;
-
+    const initData = body.initData || '';
     const botToken = env.TELEGRAM_BOT_TOKEN;
+
     if (!botToken) {
       return new Response(JSON.stringify({ error: 'Server misconfigured: no bot token' }), {
         status: 500,
@@ -83,20 +84,18 @@ export async function handleAuth(request, env) {
 
     const validation = await validateTelegramInitData(initData, botToken);
     if (!validation.valid) {
-      return new Response(JSON.stringify({ error: validation.error || 'Invalid initData' }), {
-        status: 401,
-        headers: cors,
-      });
+      // дев-режим: если передали user вручную (только если нет hash)
+      if (!initData && body.user && body.user.id) {
+        // continue below with body.user
+      } else {
+        return new Response(JSON.stringify({ error: validation.error || 'Invalid initData' }), {
+          status: 401,
+          headers: cors,
+        });
+      }
     }
 
-    // start_param из initData надёжнее (Telegram Mini App)
-    if (!referrerId && validation.startParam) {
-      const sp = String(validation.startParam).replace(/\D/g, '');
-      if (sp) referrerId = parseInt(sp, 10);
-    }
-    if (referrerId && isNaN(referrerId)) referrerId = null;
-
-    const tgUser = validation.user;
+    const tgUser = validation.user || body.user;
     if (!tgUser || !tgUser.id) {
       return new Response(JSON.stringify({ error: 'No user in initData' }), {
         status: 400,
@@ -104,14 +103,17 @@ export async function handleAuth(request, env) {
       });
     }
 
-    // нельзя реферить самого себя
-    if (referrerId && referrerId === tgUser.id) referrerId = null;
+    let referralBonus = 0;
+    let referrerId = null;
+    const startParam = validation.startParam || body.startParam || null;
+    if (startParam && String(startParam).startsWith('ref_')) {
+      const rid = parseInt(String(startParam).slice(4), 10);
+      if (rid && rid !== tgUser.id) referrerId = rid;
+    }
 
     let user = await env.DB.prepare('SELECT * FROM users WHERE telegram_id = ?')
       .bind(tgUser.id)
       .first();
-
-    let referralBonus = false;
 
     if (!user) {
       await env.DB.prepare(`
@@ -124,39 +126,29 @@ export async function handleAuth(request, env) {
           tgUser.first_name || null,
           tgUser.last_name || null,
           tgUser.photo_url || null,
-          referrerId || null,
-          100
+          referrerId,
+          0
         )
         .run();
 
+      user = await env.DB.prepare('SELECT * FROM users WHERE telegram_id = ?')
+        .bind(tgUser.id)
+        .first();
+
       if (referrerId) {
-        const ref = await env.DB.prepare(
-          'SELECT id FROM users WHERE telegram_id = ?'
-        )
-          .bind(referrerId)
-          .first();
-        if (ref) {
+        try {
           await env.DB.prepare(
             'UPDATE users SET coins = coins + 500 WHERE telegram_id = ?'
           )
             .bind(referrerId)
             .run();
-          referralBonus = true;
-        }
+          referralBonus = 500;
+        } catch (e) {}
       }
-
-      user = await env.DB.prepare('SELECT * FROM users WHERE telegram_id = ?')
-        .bind(tgUser.id)
-        .first();
     } else {
       await env.DB.prepare(`
-        UPDATE users SET
-          username = ?,
-          first_name = ?,
-          last_name = ?,
-          photo_url = ?,
-          updated_at = CURRENT_TIMESTAMP
-        WHERE telegram_id = ?
+        UPDATE users SET username = ?, first_name = ?, last_name = ?, photo_url = ?,
+          updated_at = CURRENT_TIMESTAMP WHERE telegram_id = ?
       `)
         .bind(
           tgUser.username || null,
@@ -171,6 +163,8 @@ export async function handleAuth(request, env) {
         .bind(tgUser.id)
         .first();
     }
+
+    const sub = await checkChannelSub(env, tgUser.id);
 
     return new Response(
       JSON.stringify({
@@ -187,6 +181,12 @@ export async function handleAuth(request, env) {
         },
         token: String(user.telegram_id),
         referralBonus,
+        subscription: {
+          required: isSubRequired(env),
+          subscribed: !!sub.ok,
+          channel: channelLink(env),
+          status: sub.status || null,
+        },
       }),
       { headers: cors }
     );
