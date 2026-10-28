@@ -6,7 +6,8 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <title>Дурак Онлайн</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <link rel="stylesheet" href="styles.css?v=20261028c" />
+  <link rel="stylesheet" href="styles.css?v=20261028d" />
+  <link rel="stylesheet" href="game-end.css?v=20261028d" />
 </head>
 <body>
   <div id="app">
@@ -39,7 +40,7 @@
         <button type="button" class="link-btn" id="btn-tournament">Турниры</button>
         <button type="button" class="link-btn" id="btn-settings">Настройки</button>
       </div>
-      <div class="footer"><p class="version">Durack Online v0.5.5</p></div>
+      <div class="footer"><p class="version">Durack Online v0.5.6</p></div>
     </div>
     <div id="play-sheet" class="sheet-overlay hidden">
       <div class="sheet">
@@ -87,7 +88,7 @@
     <div id="friends" class="screen hidden">
       <div class="header"><button class="btn-back" id="btn-back-friends">← Назад</button><h2>Комната с другом</h2></div>
       <div class="friends-box">
-        <p class="screen-sub" style="text-align:center">1) Создай код · 2) Отправь другу · 3) Оба войдите</p>
+        <p class="screen-sub" style="text-align:center">1) Создай · 2) Отправь · 3) Войдите</p>
         <button class="btn primary" id="btn-create-room">1. Создать код</button>
         <div class="room-code-row hidden" id="room-created-row">
           <div style="opacity:.7;font-size:13px">Код комнаты</div>
@@ -105,7 +106,7 @@
       <div class="header"><button class="btn-back" id="btn-back-ref">← Назад</button><h2>Рефералка</h2></div>
       <div class="ref-card">
         <div class="ref-bonus">+500 🪙</div>
-        <p style="opacity:.8;font-size:14px">За каждого <b>нового</b> друга по ссылке</p>
+        <p style="opacity:.8;font-size:14px">За <b>нового</b> друга по ссылке</p>
         <div class="ref-link-box" id="ref-link-text">...</div>
         <button class="btn primary" id="btn-share-ref">Поделиться</button>
         <button class="btn" id="btn-copy-ref">Скопировать</button>
@@ -133,7 +134,7 @@
     <div id="game" class="screen hidden">
       <div class="game-top">
         <button class="btn-back" id="btn-leave">Выйти</button>
-        <div class="timer-wrap"><span id="timer">15</span></div>
+        <div class="timer-wrap"><span id="timer">20</span></div>
         <div class="deck-info" id="deck-info">
           <div class="trump-label"><span class="trump-label-text">Козырь</span><span class="trump-suit-big" id="trump-suit-big">♠</span></div>
           <div class="trump-pile" id="trump-pile">
@@ -163,20 +164,21 @@
       }
     }, 4000);
   </script>
-  <script src="durak.js?v=20261028c"></script>
-  <script src="drag-play.js?v=20261028c"></script>
-  <script src="hand-sort.js?v=20261028c"></script>
-  <script src="app.js?v=20261028c"></script>
-  <script src="app-patch.js?v=20261028c"></script>
-  <script src="online-fix.js?v=20261028c"></script>
-  <script src="auth-fix.js?v=20261028c"></script>
-  <script src="ui-fix.js?v=20261028c"></script>
-  <script src="menu-ui.js?v=20261028c"></script>
-  <script src="sub-gate.js?v=20261028c"></script>
-  <script src="profile-modal.js?v=20261028c"></script>
-  <script src="presence.js?v=20261028c"></script>
-  <script src="stage2.js?v=20261028c"></script>
-  <script src="stage3.js?v=20261028c"></script>
-  <script src="stage4.js?v=20261028c"></script>
+  <script src="durak.js?v=20261028d"></script>
+  <script src="drag-play.js?v=20261028d"></script>
+  <script src="hand-sort.js?v=20261028d"></script>
+  <script src="app.js?v=20261028d"></script>
+  <script src="app-patch.js?v=20261028d"></script>
+  <script src="game-end.js?v=20261028d"></script>
+  <script src="online-fix.js?v=20261028d"></script>
+  <script src="auth-fix.js?v=20261028d"></script>
+  <script src="ui-fix.js?v=20261028d"></script>
+  <script src="menu-ui.js?v=20261028d"></script>
+  <script src="sub-gate.js?v=20261028d"></script>
+  <script src="profile-modal.js?v=20261028d"></script>
+  <script src="presence.js?v=20261028d"></script>
+  <script src="stage2.js?v=20261028d"></script>
+  <script src="stage3.js?v=20261028d"></script>
+  <script src="stage4.js?v=20261028d"></script>
 </body>
 </html>
