@@ -8,3 +8,9 @@
 @keyframes stickerPop{0%{opacity:0;transform:translate(-50%,-40%) scale(.5)}15%{opacity:1;transform:translate(-50%,-50%) scale(1.15)}70%{opacity:1;transform:translate(-50%,-55%) scale(1)}100%{opacity:0;transform:translate(-50%,-70%) scale(.9)}}
 .profile-stickers{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-bottom:12px}
 .profile-sticker{font-size:28px;background:rgba(0,0,0,.25);border-radius:12px;width:44px;height:44px;display:flex;align-items:center;justify-content:center}
+.shop-item.equipped{outline:2px solid #69f0ae;outline-offset:2px}
+.shop-item.owned{opacity:.95}
+.shop-balance-row{margin-bottom:10px;font-size:15px}
+.shop-tabs{display:flex;gap:4px;margin-bottom:12px;background:rgba(0,0,0,.25);padding:4px;border-radius:12px;overflow-x:auto}
+.shop-tab{flex:1;min-width:64px;border:none;background:transparent;color:rgba(255,255,255,.65);padding:10px 6px;border-radius:10px;font-size:12px;font-weight:600;white-space:nowrap}
+.shop-tab.active{background:rgba(79,195,247,.25);color:#fff}
