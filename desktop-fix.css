@@ -1,0 +1,177 @@
+/* PC / Desktop Telegram WebView — тёмный фон, профиль, центр */
+html, body {
+  background: #0d2a45 !important;
+  background-color: #0d2a45 !important;
+  color: #fff !important;
+  min-height: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  display: flex;
+  justify-content: center;
+  align-items: stretch;
+}
+
+#app {
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: linear-gradient(180deg, #1a3a5c 0%, #0d2a45 100%);
+  box-shadow: 0 0 40px rgba(0,0,0,.35);
+  position: relative;
+}
+
+/* Telegram Desktop светлая тема не ломает цвета */
+.screen {
+  background: transparent;
+  color: #fff;
+}
+
+.top-bar {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: flex-start !important;
+  width: 100%;
+  gap: 12px;
+}
+
+.user-info {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  min-width: 0;
+  flex: 1;
+  cursor: pointer;
+}
+
+.user-info #user-name {
+  font-weight: 600;
+  font-size: 15px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 140px;
+}
+
+.avatar {
+  width: 42px !important;
+  height: 42px !important;
+  min-width: 42px !important;
+  border-radius: 50% !important;
+  background: #2a5a8c !important;
+  object-fit: cover;
+  border: 2px solid rgba(79,195,247,.35);
+  display: block !important;
+}
+
+.top-right {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-end !important;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.coins, .online-badge {
+  background: rgba(0,0,0,.35) !important;
+  color: #fff !important;
+}
+
+.btn {
+  color: #fff !important;
+}
+
+/* Desktop wide */
+@media (min-width: 600px) {
+  #app {
+    max-width: 420px;
+    border-left: 1px solid rgba(255,255,255,.06);
+    border-right: 1px solid rgba(255,255,255,.06);
+  }
+  .menu-hero {
+    padding: 36px 0 24px;
+  }
+  .menu-title {
+    font-size: 38px;
+  }
+  .modal-overlay {
+    align-items: center;
+  }
+  .modal-sheet {
+    border-radius: 18px;
+    max-width: 400px;
+    max-height: 80vh;
+  }
+}
+
+/* Админка */
+.admin-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-bottom: 32px;
+}
+.admin-stat-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.admin-stat {
+  background: rgba(0,0,0,.3);
+  border-radius: 14px;
+  padding: 14px 12px;
+  text-align: center;
+  border: 1px solid rgba(79,195,247,.15);
+}
+.admin-stat b {
+  display: block;
+  font-size: 22px;
+  font-weight: 800;
+  color: #4fc3f7;
+}
+.admin-stat span {
+  font-size: 12px;
+  opacity: .65;
+}
+.admin-card {
+  background: rgba(0,0,0,.28);
+  border-radius: 14px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border: 1px solid rgba(255,255,255,.06);
+}
+.admin-card h3 {
+  font-size: 15px;
+  margin: 0;
+}
+.admin-row {
+  display: flex;
+  gap: 8px;
+}
+.admin-row .input {
+  flex: 1;
+  background: rgba(0,0,0,.4);
+  border: 1px solid rgba(79,195,247,.25);
+  border-radius: 12px;
+  padding: 12px;
+  color: #fff;
+  font-size: 14px;
+}
+.admin-badge {
+  display: inline-block;
+  background: rgba(255,235,59,.15);
+  color: #ffeb3b;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 8px;
+  margin-left: 6px;
+}
