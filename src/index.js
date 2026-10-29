@@ -16,6 +16,7 @@ import {
   handleTournamentDetail,
   createAutoTournament,
 } from './admin.js';
+import { handleAdminMe, handleAdminStats, handleAdminGrantCoins } from './admin-extra.js';
 import { handleProfile, handlePublicProfile } from './profile.js';
 import { handleSubCheck } from './sub.js';
 import { GameRoom } from './game-room.js';
@@ -45,7 +46,7 @@ export default {
       const path = url.pathname;
 
       if (path === '/' && request.method === 'GET') {
-        return json({ name: 'Durack Online', version: '0.5.3', status: 'ok' });
+        return json({ name: 'Durack Online', version: '0.6.1', status: 'ok' });
       }
 
       if (path === '/telegram' && request.method === 'POST') {
@@ -105,8 +106,21 @@ export default {
       if (path === '/tournament/join' && request.method === 'POST') {
         return handleTournamentJoin(request, env);
       }
+
+      // Admin
       if (path === '/admin/me' && request.method === 'GET') {
-        return handleAdminCheck(request, env);
+        // HMAC-aware check; fallback to legacy
+        try {
+          return await handleAdminMe(request, env);
+        } catch (e) {
+          return handleAdminCheck(request, env);
+        }
+      }
+      if (path === '/admin/stats' && request.method === 'GET') {
+        return handleAdminStats(request, env);
+      }
+      if (path === '/admin/coins' && request.method === 'POST') {
+        return handleAdminGrantCoins(request, env);
       }
       if (path === '/admin/tournament' && request.method === 'POST') {
         return handleAdminCreateTournament(request, env);

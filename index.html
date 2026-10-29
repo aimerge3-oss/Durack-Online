@@ -4,19 +4,32 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta name="color-scheme" content="dark" />
+  <meta name="theme-color" content="#0d2a45" />
   <title>Дурак Онлайн</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <link rel="stylesheet" href="styles.css?v=20261029a" />
-  <link rel="stylesheet" href="game-end.css?v=20261029a" />
-  <link rel="stylesheet" href="sticker-ui.css?v=20261029a" />
-  <link rel="stylesheet" href="quests-ui.css?v=20261029a" />
+  <script>
+    try {
+      if (window.Telegram && Telegram.WebApp) {
+        Telegram.WebApp.ready();
+        Telegram.WebApp.expand();
+        if (Telegram.WebApp.setHeaderColor) Telegram.WebApp.setHeaderColor('#0d2a45');
+        if (Telegram.WebApp.setBackgroundColor) Telegram.WebApp.setBackgroundColor('#0d2a45');
+      }
+    } catch (e) {}
+  </script>
+  <link rel="stylesheet" href="styles.css?v=20261029b" />
+  <link rel="stylesheet" href="desktop-fix.css?v=20261029b" />
+  <link rel="stylesheet" href="game-end.css?v=20261029b" />
+  <link rel="stylesheet" href="sticker-ui.css?v=20261029b" />
+  <link rel="stylesheet" href="quests-ui.css?v=20261029b" />
 </head>
 <body>
   <div id="app">
     <div id="loading" class="screen"><div class="loader"></div><p>Загрузка...</p></div>
     <div id="menu" class="screen hidden">
       <div class="top-bar">
-        <div class="user-info" id="user-info-click">
+        <div class="user-info" id="user-info-click" title="Профиль">
           <img id="user-avatar" src="" alt="" class="avatar" />
           <span id="user-name">Игрок</span>
         </div>
@@ -42,7 +55,7 @@
         <button type="button" class="link-btn" id="btn-tournament">Турниры</button>
         <button type="button" class="link-btn" id="btn-settings">Настройки</button>
       </div>
-      <div class="footer"><p class="version">Durack Online v0.6.0</p></div>
+      <div class="footer"><p class="version">Durack Online v0.6.1</p></div>
     </div>
     <div id="play-sheet" class="sheet-overlay hidden">
       <div class="sheet">
@@ -171,25 +184,26 @@
       }
     }, 4000);
   </script>
-  <script src="secure-api.js?v=20261029a"></script>
-  <script src="api-headers-patch.js?v=20261029a"></script>
-  <script src="durak.js?v=20261029a"></script>
-  <script src="drag-play.js?v=20261029a"></script>
-  <script src="hand-sort.js?v=20261029a"></script>
-  <script src="app.js?v=20261029a"></script>
-  <script src="app-patch.js?v=20261029a"></script>
-  <script src="game-end.js?v=20261029a"></script>
-  <script src="stickers-game.js?v=20261029a"></script>
-  <script src="online-fix.js?v=20261029a"></script>
-  <script src="online-sync.js?v=20261029a"></script>
-  <script src="auth-fix.js?v=20261029a"></script>
-  <script src="ui-fix.js?v=20261029a"></script>
-  <script src="menu-ui.js?v=20261029a"></script>
-  <script src="sub-gate.js?v=20261029a"></script>
-  <script src="profile-modal.js?v=20261029a"></script>
-  <script src="presence.js?v=20261029a"></script>
-  <script src="stage2.js?v=20261029a"></script>
-  <script src="stage3.js?v=20261029a"></script>
-  <script src="stage4.js?v=20261029a"></script>
+  <script src="secure-api.js?v=20261029b"></script>
+  <script src="api-headers-patch.js?v=20261029b"></script>
+  <script src="durak.js?v=20261029b"></script>
+  <script src="drag-play.js?v=20261029b"></script>
+  <script src="hand-sort.js?v=20261029b"></script>
+  <script src="app.js?v=20261029b"></script>
+  <script src="app-patch.js?v=20261029b"></script>
+  <script src="game-end.js?v=20261029b"></script>
+  <script src="stickers-game.js?v=20261029b"></script>
+  <script src="online-fix.js?v=20261029b"></script>
+  <script src="online-sync.js?v=20261029b"></script>
+  <script src="auth-fix.js?v=20261029b"></script>
+  <script src="ui-fix.js?v=20261029b"></script>
+  <script src="menu-ui.js?v=20261029b"></script>
+  <script src="sub-gate.js?v=20261029b"></script>
+  <script src="profile-modal.js?v=20261029b"></script>
+  <script src="presence.js?v=20261029b"></script>
+  <script src="stage2.js?v=20261029b"></script>
+  <script src="stage3.js?v=20261029b"></script>
+  <script src="stage4.js?v=20261029b"></script>
+  <script src="admin-ui.js?v=20261029b"></script>
 </body>
 </html>
