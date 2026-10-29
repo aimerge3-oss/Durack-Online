@@ -1,16 +1,26 @@
 /**
- * Онлайн матчмейкинг + комнаты
- * Выход останавливает поиск — больше не возвращает в игру
+ * Онлайн: очередь матчмейкинга + реконнект
  */
 (function () {
   var WS_BASE = 'wss://durack-online.pozzistory666.workers.dev';
-  var searchTimer = null;
-  var searchAttempt = 0;
+  var API = 'https://durack-online.pozzistory666.workers.dev';
+  var pollTimer = null;
   var userLeft = false;
   var activeRoomId = null;
+  var ROOM_KEY = 'durack_active_room';
+  var reconnectAttempt = 0;
 
   function $(id) {
     return document.getElementById(id);
+  }
+
+  function headers() {
+    if (typeof window.apiHeaders === 'function') return window.apiHeaders();
+    var h = { 'Content-Type': 'application/json' };
+    try {
+      if (Telegram.WebApp.initData) h['X-Telegram-Init-Data'] = Telegram.WebApp.initData;
+    } catch (e) {}
+    return h;
   }
 
   function getMyId() {
@@ -53,28 +63,50 @@
     }
   }
 
-  function clearSearch() {
-    if (searchTimer) {
-      clearInterval(searchTimer);
-      searchTimer = null;
-    }
-    searchAttempt = 0;
+  function saveRoom(roomId) {
+    activeRoomId = roomId;
+    try {
+      sessionStorage.setItem(ROOM_KEY, roomId || '');
+    } catch (e) {}
   }
 
-  /**
-   * Полный выход из онлайна / поиска
-   */
+  function loadRoom() {
+    try {
+      return sessionStorage.getItem(ROOM_KEY) || null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function clearRoom() {
+    activeRoomId = null;
+    try {
+      sessionStorage.removeItem(ROOM_KEY);
+    } catch (e) {}
+  }
+
+  function stopPoll() {
+    if (pollTimer) {
+      clearInterval(pollTimer);
+      pollTimer = null;
+    }
+  }
+
   window.leaveOnline = function () {
     userLeft = true;
-    clearSearch();
-    activeRoomId = null;
+    stopPoll();
+    reconnectAttempt = 0;
 
+    // выйти из очереди
     try {
-      clearInterval(window.timerInterval || null);
+      fetch(API + '/matchmaking/leave', {
+        method: 'POST',
+        headers: headers(),
+        body: '{}',
+      }).catch(function () {});
     } catch (e) {}
-    try {
-      if (typeof timerInterval !== 'undefined') clearInterval(timerInterval);
-    } catch (e) {}
+
+    clearRoom();
 
     try {
       if (window.ws) {
@@ -82,65 +114,40 @@
         window.ws.close();
       }
     } catch (e) {}
-    try {
-      if (typeof ws !== 'undefined' && ws) {
-        ws.__intentionalClose = true;
-        ws.close();
-      }
-    } catch (e) {}
-
     window.ws = null;
     try {
-      ws = null;
-    } catch (e) {}
-    try {
       onlineState = null;
-    } catch (e) {}
-    try {
       game = null;
-    } catch (e) {}
-    try {
       mode = null;
     } catch (e) {}
   };
 
-  /**
-   * Общий вход в WS-комнату
-   */
   window.startOnlineRoom = function (roomId, opts) {
     opts = opts || {};
-    // если пользователь вышел — не подключаемся обратно
     if (userLeft && opts.fromSearch) return;
 
     userLeft = false;
     var need = opts.needPlayers || 2;
-    activeRoomId = roomId;
+    saveRoom(roomId);
 
     if (typeof window.ensureAudio === 'function') window.ensureAudio();
 
     try {
       mode = 'online';
-    } catch (e) {}
-    try {
       game = null;
-    } catch (e) {}
-    try {
       onlineState = null;
     } catch (e) {}
 
     var myId = getMyId();
-    try {
-      window.myId = myId;
-    } catch (e) {}
-
+    window.myId = myId;
     var name = getName();
-    if (typeof window.showScreen === 'function') window.showScreen('game');
 
+    if (typeof window.showScreen === 'function') window.showScreen('game');
     if ($('player-hand')) $('player-hand').innerHTML = '';
     if ($('opponents')) $('opponents').innerHTML = '';
     if ($('table-cards')) $('table-cards').innerHTML = '';
 
-    setHint(opts.hint || 'Подключение...');
+    setHint(opts.hint || (opts.reconnect ? 'Переподключение...' : 'Подключение...'));
 
     try {
       if (window.ws) {
@@ -160,9 +167,6 @@
 
     var socket = new WebSocket(url);
     window.ws = socket;
-    try {
-      ws = socket;
-    } catch (e) {}
 
     socket.onopen = function () {
       if (userLeft) {
@@ -171,8 +175,11 @@
         } catch (e) {}
         return;
       }
-      setHint('В лобби: 1/' + need + ' · ждём...');
+      reconnectAttempt = 0;
+      setHint(opts.reconnect ? 'Снова в игре' : 'В лобби: 1/' + need + ' · ждём...');
       socket.send(JSON.stringify({ type: 'join', userId: myId, name: name }));
+      // запрос актуального state
+      socket.send(JSON.stringify({ type: 'sync' }));
     };
 
     socket.onmessage = function (ev) {
@@ -182,24 +189,14 @@
         if (msg.type === 'welcome' || msg.type === 'player_joined') {
           var n = (msg.players && msg.players.length) || 1;
           setHint(
-            'В лобби: ' +
-              n +
-              '/' +
-              need +
-              (n < need ? ' · ждём...' : ' · старт!')
+            'В лобби: ' + n + '/' + need + (n < need ? ' · ждём...' : ' · старт!')
           );
         }
         if (msg.type === 'state' && msg.state) {
-          if (typeof window.renderOnlineState === 'function')
-            window.renderOnlineState(msg.state);
+          if (typeof window.renderOnlineState === 'function') window.renderOnlineState(msg.state);
         }
-        if (msg.type === 'game_started') {
-          setHint('Игра началась!');
-          clearSearch(); // игра шла — поиск больше не нужен
-        }
-        if (msg.type === 'error' && typeof window.flash === 'function') {
-          window.flash(msg.message);
-        }
+        if (msg.type === 'game_started') setHint('Игра началась!');
+        if (msg.type === 'error' && typeof window.flash === 'function') window.flash(msg.message);
         if (msg.type === 'sticker' && typeof window.handleStickerMessage === 'function') {
           window.handleStickerMessage(msg);
         }
@@ -207,94 +204,117 @@
     };
 
     socket.onclose = function () {
-      if (userLeft) return;
-      setHint('Соединение закрыто. Выйди и зайди снова.');
+      if (userLeft || socket.__intentionalClose) return;
+      // авто-реконнект
+      var room = activeRoomId || loadRoom();
+      if (!room) {
+        setHint('Соединение закрыто');
+        return;
+      }
+      reconnectAttempt++;
+      if (reconnectAttempt > 8) {
+        setHint('Не удалось переподключиться. Выйди и зайди снова.');
+        return;
+      }
+      setHint('Переподключение (' + reconnectAttempt + ')...');
+      var delay = Math.min(8000, 800 * reconnectAttempt);
+      setTimeout(function () {
+        if (userLeft) return;
+        window.startOnlineRoom(room, {
+          needPlayers: need,
+          reconnect: true,
+          hint: 'Переподключение...',
+        });
+      }, delay);
     };
 
     socket.onerror = function () {
-      if (userLeft) return;
-      setHint('Ошибка сети.');
+      if (!userLeft) setHint('Ошибка сети...');
     };
   };
 
   /**
-   * Поиск соперника
+   * Очередь матчмейкинга (серверная)
    */
   window.startMatchmaking = function (playerCount) {
     userLeft = false;
     var pc = playerCount || 2;
-    searchAttempt = 0;
-    clearSearch();
+    stopPoll();
 
-    function joinSlot() {
-      if (userLeft) {
-        clearSearch();
-        return;
-      }
-      // если уже идёт игра — не рвём
-      try {
-        if (
-          window.onlineState &&
-          window.onlineState.phase &&
-          window.onlineState.phase !== 'waiting'
-        ) {
-          clearSearch();
+    if (typeof window.showScreen === 'function') window.showScreen('game');
+    setHint('Поиск соперника...');
+
+    fetch(API + '/matchmaking/join', {
+      method: 'POST',
+      headers: headers(),
+      body: JSON.stringify({ needPlayers: pc, name: getName() }),
+    })
+      .then(function (r) {
+        return r.json();
+      })
+      .then(function (d) {
+        if (!d || !d.ok) throw new Error((d && d.error) || 'queue error');
+        if (d.status === 'matched' && d.roomId) {
+          window.startOnlineRoom(d.roomId, { needPlayers: pc, hint: 'Соперник найден!' });
           return;
         }
-      } catch (e) {}
-
-      var slot = Math.floor(Date.now() / 60000);
-      var roomId = 'mm_' + pc + '_' + slot;
-      window.startOnlineRoom(roomId, {
-        needPlayers: pc,
-        hint: 'Поиск соперника...',
-        fromSearch: true,
+        setHint('В очереди: ' + (d.inQueue || 1) + ' · ждём...');
+        pollTimer = setInterval(pollStatus, 2000);
+      })
+      .catch(function (e) {
+        setHint(e.message || 'Ошибка поиска');
       });
-    }
 
-    joinSlot();
-
-    searchTimer = setInterval(function () {
+    function pollStatus() {
       if (userLeft) {
-        clearSearch();
+        stopPoll();
         return;
       }
-      searchAttempt++;
-      try {
-        if (
-          window.onlineState &&
-          window.onlineState.phase &&
-          window.onlineState.phase !== 'waiting'
-        ) {
-          clearSearch();
-          return;
-        }
-      } catch (e) {}
-      if (searchAttempt > 6) {
-        clearSearch();
-        setHint('Никого не нашли. Попробуй комнату с другом.');
-        return;
-      }
-      joinSlot();
-    }, 20000);
+      fetch(API + '/matchmaking/status', { headers: headers() })
+        .then(function (r) {
+          return r.json();
+        })
+        .then(function (d) {
+          if (!d || !d.ok) return;
+          if (d.status === 'matched' && d.roomId) {
+            stopPoll();
+            window.startOnlineRoom(d.roomId, {
+              needPlayers: pc,
+              hint: 'Соперник найден!',
+            });
+          } else if (d.status === 'waiting') {
+            setHint(
+              'В очереди: ' +
+                (d.inQueue || 1) +
+                (d.waitedSec ? ' · ' + d.waitedSec + 'с' : '') +
+                ' · ждём...'
+            );
+          }
+        })
+        .catch(function () {});
+    }
   };
 
-  // кнопка Выйти — останавливаем поиск
-  function bindLeave() {
-    var btn = $('btn-leave');
-    if (!btn || btn.__leaveOnlineBound) return;
-    btn.__leaveOnlineBound = true;
-    btn.addEventListener(
-      'click',
-      function () {
-        window.leaveOnline();
-      },
-      true
-    );
+  // авто-реконнект при открытии приложения
+  function tryResumeRoom() {
+    var room = loadRoom();
+    if (!room) return;
+    // не авто-входим сразу в меню — только если пользователь был в игре
+    // мягкий resume: не форсируем
   }
 
   function bind() {
-    bindLeave();
+    var btn = $('btn-leave');
+    if (btn && !btn.__leaveOnlineBound) {
+      btn.__leaveOnlineBound = true;
+      btn.addEventListener(
+        'click',
+        function () {
+          window.leaveOnline();
+        },
+        true
+      );
+    }
 
     var online = $('btn-online');
     if (online && !online.__mmBound) {
@@ -327,5 +347,5 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bind);
   else bind();
   setTimeout(bind, 400);
-  setTimeout(bindLeave, 800);
+  setTimeout(tryResumeRoom, 1000);
 })();

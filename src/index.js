@@ -1,5 +1,5 @@
 /**
- * Durack Online — Cloudflare Worker
+ * Durack Online — Cloudflare Worker v0.6.2
  */
 
 import { handleAuth } from './auth.js';
@@ -21,6 +21,15 @@ import { handleProfile, handlePublicProfile } from './profile.js';
 import { handleSubCheck } from './sub.js';
 import { GameRoom } from './game-room.js';
 import { handleTelegramWebhook, handleSetWebhook } from './bot.js';
+import { rateLimit, clientKey, LIMITS } from './rate-limit.js';
+import {
+  handleMatchJoin,
+  handleMatchStatus,
+  handleMatchLeave,
+  cleanupMatchQueue,
+} from './matchmaking.js';
+import { handleHealth } from './health.js';
+import { requireTelegramUser } from './telegram-auth.js';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -28,11 +37,24 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Telegram-Init-Data',
 };
 
-function json(data, status = 200) {
+function json(data, status = 200, extraHeaders = {}) {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    headers: { ...corsHeaders, 'Content-Type': 'application/json', ...extraHeaders },
   });
+}
+
+async function withRateLimit(request, env, name, cfg, telegramId) {
+  const key = name + ':' + clientKey(request, telegramId);
+  const rl = await rateLimit(env, key, cfg.limit, cfg.window);
+  if (!rl.ok) {
+    return json(
+      { error: 'Too many requests', retryAfter: rl.retryAfter },
+      429,
+      { 'Retry-After': String(rl.retryAfter || 60) }
+    );
+  }
+  return null;
 }
 
 export default {
@@ -41,12 +63,16 @@ export default {
       return new Response(null, { headers: corsHeaders });
     }
 
+    const url = new URL(request.url);
+    const path = url.pathname;
+
     try {
-      const url = new URL(request.url);
-      const path = url.pathname;
+      if (path === '/health' && request.method === 'GET') {
+        return handleHealth(request, env);
+      }
 
       if (path === '/' && request.method === 'GET') {
-        return json({ name: 'Durack Online', version: '0.6.1', status: 'ok' });
+        return json({ name: 'Durack Online', version: '0.6.2', status: 'ok' });
       }
 
       if (path === '/telegram' && request.method === 'POST') {
@@ -55,9 +81,14 @@ export default {
       if (path === '/set-webhook' && request.method === 'GET') {
         return handleSetWebhook(request, env);
       }
+
+      // ---- AUTH (rate limited) ----
       if (path === '/auth' && request.method === 'POST') {
+        const blocked = await withRateLimit(request, env, 'auth', LIMITS.auth, null);
+        if (blocked) return blocked;
         return handleAuth(request, env);
       }
+
       if (path === '/me' && request.method === 'GET') {
         return handleMe(request, env);
       }
@@ -79,37 +110,76 @@ export default {
       if (path === '/presence' && request.method === 'POST') {
         return handlePresence(request, env);
       }
+
+      // ---- SHOP ----
       if (path === '/shop' && request.method === 'GET') {
         return handleShop(request, env);
       }
       if (path === '/shop/buy' && request.method === 'POST') {
+        let tid = null;
+        try {
+          const a = await requireTelegramUser(request, env);
+          if (a.ok) tid = a.telegramId;
+        } catch (e) {}
+        const blocked = await withRateLimit(request, env, 'buy', LIMITS.shopBuy, tid);
+        if (blocked) return blocked;
         return handleBuy(request, env);
       }
 
+      // ---- QUESTS ----
       if (path === '/quests' && request.method === 'GET') {
+        let tid = null;
+        try {
+          const a = await requireTelegramUser(request, env);
+          if (a.ok) tid = a.telegramId;
+        } catch (e) {}
+        const blocked = await withRateLimit(request, env, 'quests', LIMITS.quests, tid);
+        if (blocked) return blocked;
         return handleQuestsList(request, env);
       }
       if (path === '/quests/event' && request.method === 'POST') {
+        let tid = null;
+        try {
+          const a = await requireTelegramUser(request, env);
+          if (a.ok) tid = a.telegramId;
+        } catch (e) {}
+        const blocked = await withRateLimit(request, env, 'qevent', LIMITS.quests, tid);
+        if (blocked) return blocked;
         return handleQuestEvent(request, env);
       }
       if (path === '/quests/claim' && request.method === 'POST') {
+        let tid = null;
+        try {
+          const a = await requireTelegramUser(request, env);
+          if (a.ok) tid = a.telegramId;
+        } catch (e) {}
+        const blocked = await withRateLimit(request, env, 'qclaim', LIMITS.shopBuy, tid);
+        if (blocked) return blocked;
         return handleQuestClaim(request, env);
+      }
+
+      // ---- MATCHMAKING QUEUE ----
+      if (path === '/matchmaking/join' && request.method === 'POST') {
+        return handleMatchJoin(request, env);
+      }
+      if (path === '/matchmaking/status' && request.method === 'GET') {
+        return handleMatchStatus(request, env);
+      }
+      if (path === '/matchmaking/leave' && request.method === 'POST') {
+        return handleMatchLeave(request, env);
       }
 
       if (path === '/tournaments' && request.method === 'GET') {
         return handleTournamentsList(request, env);
       }
       if (path.startsWith('/tournament/') && path !== '/tournament/join' && request.method === 'GET') {
-        const code = path.slice('/tournament/'.length);
-        return handleTournamentDetail(request, env, code);
+        return handleTournamentDetail(request, env, path.slice('/tournament/'.length));
       }
       if (path === '/tournament/join' && request.method === 'POST') {
         return handleTournamentJoin(request, env);
       }
 
-      // Admin
       if (path === '/admin/me' && request.method === 'GET') {
-        // HMAC-aware check; fallback to legacy
         try {
           return await handleAdminMe(request, env);
         } catch (e) {
@@ -142,12 +212,17 @@ export default {
 
       return json({ error: 'Not Found' }, 404);
     } catch (err) {
-      console.error('Worker error:', err);
-      return json({ error: err.message || 'Internal error' }, 500);
+      console.error('Worker error', path, err && err.stack ? err.stack : err);
+      return json({ error: err.message || 'Internal error', path }, 500);
     }
   },
 
   async scheduled(event, env, ctx) {
+    try {
+      await cleanupMatchQueue(env);
+    } catch (e) {
+      console.error('cleanup queue', e);
+    }
     try {
       const res = await createAutoTournament(env);
       console.log('auto tournament', res);
