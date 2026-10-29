@@ -1,5 +1,6 @@
 /**
  * Durable Object — игровая комната + Дурак
+ * stateSeq для синхрона стола (клиент игнорирует устаревшие state)
  */
 
 import { DurakGame } from './durak.js';
@@ -13,6 +14,7 @@ export class GameRoom {
     this.turnDeadline = 0;
     this.winsRecorded = false;
     this.roomId = null;
+    this.stateSeq = 0;
   }
 
   async fetch(request) {
@@ -71,6 +73,7 @@ export class GameRoom {
         type: 'welcome',
         userId,
         players: this.listPlayers(),
+        stateSeq: this.stateSeq,
       });
       this.broadcast(
         {
@@ -119,6 +122,7 @@ export class GameRoom {
   }
 
   broadcastState() {
+    this.stateSeq += 1;
     for (const [ws, info] of this.sessions) {
       this.send(ws, { type: 'state', state: this.publicState(info.userId) });
     }
@@ -129,6 +133,8 @@ export class GameRoom {
     const st = this.game.getPublicState(forUserId);
     st.turnDeadline = this.turnDeadline;
     st.legal = this.game.getLegalMoves(forUserId);
+    st.stateSeq = this.stateSeq;
+    st.serverNow = Date.now();
     if (this.game.phase === 'finished') {
       st.phase = 'finished';
       st.foolId = this.game.foolId;
@@ -147,6 +153,7 @@ export class GameRoom {
     this.game.start();
     this.winsRecorded = false;
     this.turnDeadline = Date.now() + 20000;
+    this.stateSeq = 0;
     this.broadcast({ type: 'game_started' });
     this.broadcastState();
   }
@@ -203,7 +210,11 @@ export class GameRoom {
       return;
     }
 
-    // стикеры видны всем в комнате
+    if (data.type === 'ping') {
+      this.send(ws, { type: 'pong', t: Date.now(), stateSeq: this.stateSeq });
+      return;
+    }
+
     if (data.type === 'sticker') {
       this.broadcast({
         type: 'sticker',
@@ -240,6 +251,9 @@ export class GameRoom {
         this.game.phase = 'finished';
         this.game.foolId = userId;
         res = { ok: true };
+      } else if (data.type === 'sync') {
+        this.send(ws, { type: 'state', state: this.publicState(userId) });
+        return;
       }
     } catch (e) {
       res = { ok: false, error: e.message };
@@ -247,6 +261,8 @@ export class GameRoom {
 
     if (!res.ok) {
       this.send(ws, { type: 'error', message: res.error || 'error' });
+      // всё равно отдаём актуальный state — синхрон
+      this.send(ws, { type: 'state', state: this.publicState(userId) });
       return;
     }
 
