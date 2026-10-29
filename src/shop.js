@@ -1,17 +1,8 @@
 /**
- * Магазин стикеров — совместим со старой схемой D1
+ * Магазин стикеров + HMAC auth
  */
 
-const cors = {
-  'Access-Control-Allow-Origin': '*',
-  'Content-Type': 'application/json',
-};
-
-function getTelegramId(request) {
-  const auth = request.headers.get('Authorization') || '';
-  const match = auth.match(/^Bearer\s+(\d+)$/i);
-  return match ? parseInt(match[1], 10) : null;
-}
+import { requireTelegramUser, corsJson } from './telegram-auth.js';
 
 const SEED = [
   { id: 1, name: 'Классика', price: 50, emoji: '🃏', description: 'Карта' },
@@ -34,14 +25,9 @@ async function ensureStickers(env) {
       description TEXT
     )
   `).run();
-
-  // старые БД без description — добавляем колонку
   try {
     await env.DB.prepare('ALTER TABLE stickers ADD COLUMN description TEXT').run();
-  } catch (e) {
-    // уже есть — ок
-  }
-
+  } catch (e) {}
   await env.DB.prepare(`
     CREATE TABLE IF NOT EXISTS user_stickers (
       user_id INTEGER NOT NULL,
@@ -50,7 +36,6 @@ async function ensureStickers(env) {
       PRIMARY KEY (user_id, sticker_id)
     )
   `).run();
-
   for (const s of SEED) {
     try {
       await env.DB.prepare(
@@ -59,7 +44,6 @@ async function ensureStickers(env) {
         .bind(s.id, s.name, s.price, s.emoji, s.description)
         .run();
     } catch (e) {
-      // fallback без description
       try {
         await env.DB.prepare(
           'INSERT OR IGNORE INTO stickers (id, name, price, emoji) VALUES (?, ?, ?, ?)'
@@ -74,16 +58,15 @@ async function ensureStickers(env) {
 export async function handleShop(request, env) {
   try {
     await ensureStickers(env);
-    const telegramId = getTelegramId(request);
-
+    const auth = await requireTelegramUser(request, env);
     let owned = new Set();
     let coins = 0;
 
-    if (telegramId) {
+    if (auth.ok) {
       const user = await env.DB.prepare(
         'SELECT id, coins FROM users WHERE telegram_id = ?'
       )
-        .bind(telegramId)
+        .bind(auth.telegramId)
         .first();
       if (user) {
         coins = user.coins || 0;
@@ -96,11 +79,7 @@ export async function handleShop(request, env) {
       }
     }
 
-    let list = SEED.map((s) => ({
-      ...s,
-      owned: owned.has(s.id),
-    }));
-
+    let list = SEED.map((s) => ({ ...s, owned: owned.has(s.id) }));
     try {
       const stickers = await env.DB.prepare(
         'SELECT id, name, price, emoji, description FROM stickers ORDER BY price ASC'
@@ -133,53 +112,33 @@ export async function handleShop(request, env) {
       } catch (e2) {}
     }
 
-    return new Response(JSON.stringify({ ok: true, stickers: list, coins }), {
-      headers: cors,
-    });
+    return corsJson({ ok: true, stickers: list, coins, auth: auth.ok });
   } catch (err) {
-    return new Response(
-      JSON.stringify({
-        ok: true,
-        stickers: SEED.map((s) => ({ ...s, owned: false })),
-        coins: 0,
-        warn: err.message,
-      }),
-      { headers: cors }
-    );
+    return corsJson({
+      ok: true,
+      stickers: SEED.map((s) => ({ ...s, owned: false })),
+      coins: 0,
+      warn: err.message,
+    });
   }
 }
 
 export async function handleBuy(request, env) {
   try {
     await ensureStickers(env);
-    const telegramId = getTelegramId(request);
-    if (!telegramId) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: cors,
-      });
-    }
+    const auth = await requireTelegramUser(request, env);
+    if (!auth.ok) return corsJson({ error: auth.error }, auth.status || 401);
 
     const body = await request.json();
     const stickerId = parseInt(body.stickerId, 10);
-    if (!stickerId) {
-      return new Response(JSON.stringify({ error: 'stickerId required' }), {
-        status: 400,
-        headers: cors,
-      });
-    }
+    if (!stickerId) return corsJson({ error: 'stickerId required' }, 400);
 
     const user = await env.DB.prepare(
       'SELECT id, coins FROM users WHERE telegram_id = ?'
     )
-      .bind(telegramId)
+      .bind(auth.telegramId)
       .first();
-    if (!user) {
-      return new Response(JSON.stringify({ error: 'User not found' }), {
-        status: 404,
-        headers: cors,
-      });
-    }
+    if (!user) return corsJson({ error: 'User not found' }, 404);
 
     let sticker = null;
     try {
@@ -192,12 +151,7 @@ export async function handleBuy(request, env) {
 
     if (!sticker) {
       const seed = SEED.find((s) => s.id === stickerId);
-      if (!seed) {
-        return new Response(JSON.stringify({ error: 'Sticker not found' }), {
-          status: 404,
-          headers: cors,
-        });
-      }
+      if (!seed) return corsJson({ error: 'Sticker not found' }, 404);
       try {
         await env.DB.prepare(
           'INSERT OR IGNORE INTO stickers (id, name, price, emoji, description) VALUES (?, ?, ?, ?, ?)'
@@ -219,18 +173,10 @@ export async function handleBuy(request, env) {
     )
       .bind(user.id, stickerId)
       .first();
-    if (already) {
-      return new Response(
-        JSON.stringify({ error: 'Уже куплено', coins: user.coins }),
-        { status: 400, headers: cors }
-      );
-    }
+    if (already) return corsJson({ error: 'Уже куплено', coins: user.coins }, 400);
 
     if ((user.coins || 0) < sticker.price) {
-      return new Response(JSON.stringify({ error: 'Недостаточно монет' }), {
-        status: 400,
-        headers: cors,
-      });
+      return corsJson({ error: 'Недостаточно монет' }, 400);
     }
 
     await env.DB.batch([
@@ -252,34 +198,25 @@ export async function handleBuy(request, env) {
       await env.DB.prepare('UPDATE users SET coins = coins + ? WHERE id = ?')
         .bind(sticker.price, user.id)
         .run();
-      return new Response(
-        JSON.stringify({ error: 'Не удалось выдать стикер' }),
-        { status: 500, headers: cors }
-      );
+      return corsJson({ error: 'Не удалось выдать стикер' }, 500);
     }
 
     const updated = await env.DB.prepare('SELECT coins FROM users WHERE id = ?')
       .bind(user.id)
       .first();
 
-    return new Response(
-      JSON.stringify({
-        ok: true,
-        sticker: {
-          id: sticker.id,
-          name: sticker.name,
-          price: sticker.price,
-          emoji: sticker.emoji,
-        },
-        coins: updated.coins,
-      }),
-      { headers: cors }
-    );
+    return corsJson({
+      ok: true,
+      sticker: {
+        id: sticker.id,
+        name: sticker.name,
+        price: sticker.price,
+        emoji: sticker.emoji,
+      },
+      coins: updated.coins,
+    });
   } catch (err) {
     console.error('buy', err);
-    return new Response(JSON.stringify({ error: err.message }), {
-      status: 500,
-      headers: cors,
-    });
+    return corsJson({ error: err.message }, 500);
   }
 }
